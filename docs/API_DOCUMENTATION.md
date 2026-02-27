@@ -239,6 +239,230 @@ Reset password với token từ email.
 }
 ```
 
+### 0.8 Login with Google (OAuth)
+
+**GET** `/auth/google`
+
+Initiate Google OAuth login flow. Redirects user to Google consent screen.
+
+**Query Parameters:**
+
+- `redirect_uri` (string, optional): URL to redirect after successful login, default = frontend URL
+
+**Example:**
+
+```
+GET /api/v1/auth/google?redirect_uri=http://localhost:5173/auth/callback
+```
+
+**Response:**
+
+Redirects to Google OAuth consent screen:
+
+```
+https://accounts.google.com/o/oauth2/v2/auth?
+  client_id=YOUR_GOOGLE_CLIENT_ID
+  &redirect_uri=http://localhost:8080/api/v1/auth/google/callback
+  &response_type=code
+  &scope=openid%20profile%20email
+  &state=random_state_string
+```
+
+**User Flow:**
+
+1. Frontend redirects user to `/api/v1/auth/google`
+2. Backend redirects to Google consent screen
+3. User logs in with Google and grants permissions
+4. Google redirects back to `/api/v1/auth/google/callback`
+5. Backend processes callback and redirects to frontend with token
+
+### 0.9 Google OAuth Callback
+
+**GET** `/auth/google/callback`
+
+Handle OAuth callback từ Google. Endpoint này được Google gọi sau khi user authorize.
+
+**Query Parameters:**
+
+- `code` (string, required): Authorization code từ Google
+- `state` (string, required): State parameter để verify request
+- `error` (string, optional): Error code nếu user từ chối
+
+**Success Flow:**
+
+Sau khi verify code với Google, backend tạo/update user và redirect về frontend:
+
+```
+Redirect to: http://localhost:5173/auth/callback?token=eyJhbGc...&refresh_token=refresh_token_string
+```
+
+**Frontend sẽ nhận:**
+
+```javascript
+// Parse URL params
+const urlParams = new URLSearchParams(window.location.search);
+const accessToken = urlParams.get("token");
+const refreshToken = urlParams.get("refresh_token");
+
+// Save tokens and redirect to dashboard
+localStorage.setItem("access_token", accessToken);
+localStorage.setItem("refresh_token", refreshToken);
+window.location.href = "/dashboard";
+```
+
+**Error Flow:**
+
+Nếu có lỗi, redirect về frontend với error:
+
+```
+Redirect to: http://localhost:5173/login?error=access_denied&error_description=User%20denied%20access
+```
+
+**Response Data Structure (trong params):**
+
+```
+token=eyJhbGc...jwt_token
+refresh_token=refresh_token_string
+expires_in=3600
+user_id=uuid-string
+email=user@gmail.com
+full_name=Nguyễn Văn A
+avatar_url=https://lh3.googleusercontent.com/...
+```
+
+### 0.10 Login with Google (Direct Token)
+
+**POST** `/auth/google/token`
+
+Đăng nhập với Google ID token (alternative flow, dùng khi frontend tự handle Google Sign-In).
+
+**Use Case:**
+
+Khi frontend sử dụng Google Sign-In JavaScript library để lấy ID token trực tiếp, sau đó gửi token này lên backend để verify và tạo session.
+
+**Request Body:**
+
+```json
+{
+    "id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjI3ZTc..."
+}
+```
+
+**Response 200:**
+
+```json
+{
+    "status": "success",
+    "message": "Login with Google successful",
+    "data": {
+        "user": {
+            "id": "uuid-string",
+            "email": "user@gmail.com",
+            "full_name": "Nguyễn Văn A",
+            "avatar_url": "https://lh3.googleusercontent.com/a/...",
+            "auth_provider": "google",
+            "created_at": "2026-02-27T10:00:00Z"
+        },
+        "session": {
+            "access_token": "eyJhbGc...",
+            "refresh_token": "refresh_token_string",
+            "expires_in": 3600,
+            "token_type": "bearer"
+        },
+        "is_new_user": false
+    }
+}
+```
+
+**Response 400:**
+
+```json
+{
+    "status": "error",
+    "message": "Invalid Google ID token",
+    "code": "INVALID_TOKEN"
+}
+```
+
+**Frontend Implementation Example:**
+
+```javascript
+// Using Google Sign-In JavaScript library
+function handleGoogleSignIn() {
+    google.accounts.id.initialize({
+        client_id: "YOUR_GOOGLE_CLIENT_ID",
+        callback: handleCredentialResponse,
+    });
+
+    google.accounts.id.prompt();
+}
+
+async function handleCredentialResponse(response) {
+    const idToken = response.credential;
+
+    // Send to backend
+    const res = await fetch("/api/v1/auth/google/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: idToken }),
+    });
+
+    const data = await res.json();
+
+    if (data.status === "success") {
+        localStorage.setItem("access_token", data.data.session.access_token);
+        localStorage.setItem("refresh_token", data.data.session.refresh_token);
+        window.location.href = "/dashboard";
+    }
+}
+```
+
+### OAuth Configuration Notes
+
+**Supabase OAuth Setup:**
+
+1. **Enable Google Provider** trong Supabase Dashboard:
+    - Go to Authentication → Providers
+    - Enable Google
+    - Add Google Client ID và Client Secret
+
+2. **Google Cloud Console Setup:**
+    - Create OAuth 2.0 Client ID
+    - Authorized redirect URIs:
+        - `https://your-project.supabase.co/auth/v1/callback`
+        - `http://localhost:8080/api/v1/auth/google/callback` (development)
+    - Authorized JavaScript origins:
+        - `http://localhost:5173` (development)
+        - `https://your-domain.com` (production)
+
+3. **Environment Variables:**
+
+```env
+# .env
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
+FRONTEND_URL=http://localhost:5173
+```
+
+**Security Considerations:**
+
+- ✅ Always verify `state` parameter để prevent CSRF attacks
+- ✅ Validate Google ID token signature với Google's public keys
+- ✅ Check token expiration time
+- ✅ Verify `aud` (audience) claim matches your Client ID
+- ✅ Use HTTPS in production
+- ✅ Store tokens securely (httpOnly cookies recommended for web)
+
+**User Linking:**
+
+Nếu user đã có account với email, Google OAuth sẽ:
+
+- Link Google account với existing account
+- Update avatar_url từ Google
+- Set `auth_provider` = "google"
+- User có thể login bằng cả email/password và Google
+
 ---
 
 ## 1. Accounts API

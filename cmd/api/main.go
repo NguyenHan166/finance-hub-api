@@ -38,17 +38,20 @@ func main() {
 	defer db.Close()
 
 	// Initialize repositories
+	userRepo := repositories.NewUserRepository(db.Database)
 	accountRepo := repositories.NewAccountRepository(db.Database)
 	transactionRepo := repositories.NewTransactionRepository(db.Database)
 	categoryRepo := repositories.NewCategoryRepository(db.Database)
 
 	// Initialize services
+	authService := services.NewAuthService(userRepo, cfg)
 	accountService := services.NewAccountService(accountRepo)
 	transactionService := services.NewTransactionService(transactionRepo, accountRepo)
 	categoryService := services.NewCategoryService(categoryRepo)
 
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler()
+	authHandler := handlers.NewAuthHandler(authService)
 	accountHandler := handlers.NewAccountHandler(accountService)
 	transactionHandler := handlers.NewTransactionHandler(transactionService)
 	categoryHandler := handlers.NewCategoryHandler(categoryService)
@@ -57,6 +60,7 @@ func main() {
 	router := handlers.NewRouter(
 		cfg,
 		healthHandler,
+		authHandler,
 		accountHandler,
 		transactionHandler,
 		categoryHandler,

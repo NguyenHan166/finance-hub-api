@@ -6,12 +6,30 @@ import (
 
 // User represents a user in the system
 type User struct {
-	ID        string    `json:"id" bson:"_id,omitempty"`
-	UserID    string    `json:"user_id" bson:"user_id"`
-	FullName  *string   `json:"full_name,omitempty" bson:"full_name,omitempty"`
-	AvatarURL *string   `json:"avatar_url,omitempty" bson:"avatar_url,omitempty"`
-	CreatedAt time.Time `json:"created_at" bson:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" bson:"updated_at"`
+	ID             string    `json:"id" bson:"_id,omitempty"`
+	Email          string    `json:"email" bson:"email"`
+	PasswordHash   *string   `json:"-" bson:"password_hash,omitempty"` // Hidden from JSON
+	FullName       string    `json:"full_name" bson:"full_name"`
+	AvatarURL      *string   `json:"avatar_url,omitempty" bson:"avatar_url,omitempty"`
+	GoogleID       *string   `json:"-" bson:"google_id,omitempty"` // Hidden from JSON
+	AuthProvider   string    `json:"auth_provider" bson:"auth_provider"` // "email", "google"
+	EmailVerified  bool      `json:"email_verified" bson:"email_verified"`
+	IsActive       bool      `json:"is_active" bson:"is_active"`
+	LastLoginAt    *time.Time `json:"last_login_at,omitempty" bson:"last_login_at,omitempty"`
+	CreatedAt      time.Time `json:"created_at" bson:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at" bson:"updated_at"`
+}
+
+// UserProfile represents public user profile (safe to send to client)
+type UserProfile struct {
+	ID            string     `json:"id"`
+	Email         string     `json:"email"`
+	FullName      string     `json:"full_name"`
+	AvatarURL     *string    `json:"avatar_url,omitempty"`
+	AuthProvider  string     `json:"auth_provider"`
+	EmailVerified bool       `json:"email_verified"`
+	LastLoginAt   *time.Time `json:"last_login_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 // Account represents a financial account
@@ -146,4 +164,68 @@ type PaginatedResponse struct {
 	Limit      int         `json:"limit"`
 	TotalItems int         `json:"total_items"`
 	TotalPages int         `json:"total_pages"`
+}
+
+// Auth DTOs
+
+// RegisterRequest represents user registration request
+type RegisterRequest struct {
+	Email           string `json:"email" binding:"required,email"`
+	Password        string `json:"password" binding:"required,min=8"`
+	ConfirmPassword string `json:"confirm_password" binding:"required"`
+	FullName        string `json:"full_name" binding:"required"`
+}
+
+// LoginRequest represents user login request
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+// GoogleTokenRequest represents Google ID token verification request
+type GoogleTokenRequest struct {
+	IDToken string `json:"id_token" binding:"required"`
+}
+
+// AuthResponse represents successful authentication response
+type AuthResponse struct {
+	User         UserProfile `json:"user"`
+	AccessToken  string      `json:"access_token"`
+	RefreshToken string      `json:"refresh_token"`
+	ExpiresIn    int64       `json:"expires_in"`
+	IsNewUser    bool        `json:"is_new_user"`
+}
+
+// RefreshTokenRequest represents token refresh request
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+// GoogleUserInfo represents user info from Google
+type GoogleUserInfo struct {
+	Sub           string `json:"sub"`            // Google User ID
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Picture       string `json:"picture"`
+	Locale        string `json:"locale"`
+}
+
+// ChangePasswordRequest represents change password request
+type ChangePasswordRequest struct {
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
+// ResetPasswordRequest represents reset password request
+type ResetPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// ConfirmResetPasswordRequest represents confirm reset password with token
+type ConfirmResetPasswordRequest struct {
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
 }

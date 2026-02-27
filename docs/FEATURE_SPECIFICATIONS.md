@@ -2,6 +2,7 @@
 
 ## Table of Contents
 
+0. [Authentication & Onboarding](#0-authentication--onboarding)
 1. [Feature Overview](#feature-overview)
 2. [Dashboard](#1-dashboard)
 3. [Accounts Management](#2-accounts-management)
@@ -12,6 +13,630 @@
 8. [AI Chat Assistant](#7-ai-chat-assistant)
 9. [Alerts & Insights](#8-alerts--insights)
 10. [Settings](#9-settings)
+
+---
+
+## 0. Authentication & Onboarding
+
+### Overview
+
+Hệ thống authentication cho phép user đăng ký, đăng nhập bằng email/password hoặc Google OAuth.
+
+### User Stories
+
+- **US-AUTH-1**: Là new user, tôi muốn đăng ký account bằng email và password
+- **US-AUTH-2**: Là new user, tôi muốn đăng ký/đăng nhập nhanh bằng Google account
+- **US-AUTH-3**: Là existing user, tôi muốn đăng nhập bằng email/password
+- **US-AUTH-4**: Là existing user, tôi muốn đăng nhập bằng Google nếu đã link account
+- **US-AUTH-5**: Là user quên password, tôi muốn reset password qua email
+- **US-AUTH-6**: Là new user, tôi muốn có onboarding flow hướng dẫn setup ban đầu
+
+### Authentication Methods
+
+#### 1. Email/Password Authentication (Supabase)
+
+- Traditional email/password login
+- Password validation: ≥8 chars, uppercase, lowercase, số
+- Email verification (optional)
+
+#### 2. Google OAuth 2.0
+
+- One-click sign in with Google
+- Auto-populate profile từ Google (name, avatar)
+- Account linking nếu email đã tồn tại
+
+### UI Components
+
+#### 0.1 Login Page
+
+**Route**: `/login`
+
+**Layout:**
+
+```
+┌────────────────────────────────────────┐
+│                                        │
+│        💰 Finance Hub                  │
+│                                        │
+│   ┌────────────────────────────────┐   │
+│   │                                │   │
+│   │  Email                         │   │
+│   │  [user@example.com]            │   │
+│   │                                │   │
+│   │  Password                      │   │
+│   │  [•••••••••••]  [👁️]           │   │
+│   │                                │   │
+│   │  ☐ Remember me                 │   │
+│   │                                │   │
+│   │     [Đăng nhập]                │   │
+│   │                                │   │
+│   │  ──────── hoặc ────────        │   │
+│   │                                │   │
+│   │  [🔵 Continue with Google]     │   │
+│   │                                │   │
+│   │  Quên mật khẩu?                │   │
+│   │                                │   │
+│   │  Chưa có tài khoản? Đăng ký    │   │
+│   │                                │   │
+│   └────────────────────────────────┘   │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+**Fields:**
+
+- Email input (with validation)
+- Password input (with show/hide toggle)
+- Remember me checkbox
+- Forgot password link
+- Sign up link
+
+**Validation:**
+
+- Email: required, valid format
+- Password: required
+
+**Actions:**
+
+- "Đăng nhập" button → POST /auth/login
+- "Continue with Google" button → GET /auth/google
+- "Quên mật khẩu?" link → /forgot-password
+- "Đăng ký" link → /register
+
+#### 0.2 Register Page
+
+**Route**: `/register`
+
+**Layout:**
+
+```
+┌────────────────────────────────────────┐
+│                                        │
+│        💰 Finance Hub                  │
+│        Tạo tài khoản mới               │
+│                                        │
+│   ┌────────────────────────────────┐   │
+│   │                                │   │
+│   │  Họ và tên *                   │   │
+│   │  [Nguyễn Văn A]                │   │
+│   │                                │   │
+│   │  Email *                       │   │
+│   │  [user@example.com]            │   │
+│   │                                │   │
+│   │  Password *                    │   │
+│   │  [•••••••••••]  [👁️]           │   │
+│   │  ✓ At least 8 characters       │   │
+│   │  ✓ Uppercase and lowercase     │   │
+│   │  ✓ Contains number             │   │
+│   │                                │   │
+│   │  Confirm Password *            │   │
+│   │  [•••••••••••]  [👁️]           │   │
+│   │                                │   │
+│   │  ☑ Tôi đồng ý với Terms of     │   │
+│   │    Service và Privacy Policy   │   │
+│   │                                │   │
+│   │     [Đăng ký]                  │   │
+│   │                                │   │
+│   │  ──────── hoặc ────────        │   │
+│   │                                │   │
+│   │  [🔵 Sign up with Google]      │   │
+│   │                                │   │
+│   │  Đã có tài khoản? Đăng nhập    │   │
+│   │                                │   │
+│   └────────────────────────────────┘   │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+**Fields:**
+
+- Full name input
+- Email input
+- Password input with strength indicator
+- Confirm password input
+- Terms acceptance checkbox
+
+**Password Strength Indicator:**
+
+```
+Weak     [██░░░░]
+Fair     [████░░]
+Strong   [██████] ✓
+```
+
+**Validation:**
+
+- Full name: required, 1-100 chars
+- Email: required, valid format, unique
+- Password: required, ≥8 chars, must have uppercase, lowercase, number
+- Confirm password: must match password
+- Terms: must be checked
+
+#### 0.3 Google Sign-In Button
+
+**Design Specifications:**
+
+Tuân theo [Google Sign-In Branding Guidelines](https://developers.google.com/identity/branding-guidelines):
+
+**Standard Button:**
+
+```
+┌──────────────────────────────────┐
+│  🔵  Sign in with Google         │
+└──────────────────────────────────┘
+```
+
+**Variants:**
+
+- Light theme: White background, blue Google logo
+- Dark theme: Dark background, white text
+- Icon only: Just Google logo (for mobile)
+
+**CSS Example:**
+
+```css
+.google-signin-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 24px;
+    background: #4285f4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.google-signin-button:hover {
+    background: #357ae8;
+}
+
+.google-signin-button img {
+    width: 20px;
+    height: 20px;
+}
+```
+
+**Implementation:**
+
+**Option 1: OAuth Flow (Redirect)**
+
+```javascript
+function handleGoogleSignIn() {
+    // Redirect to backend OAuth endpoint
+    window.location.href =
+        "/api/v1/auth/google?redirect_uri=" +
+        encodeURIComponent(window.location.origin + "/auth/callback");
+}
+```
+
+**Option 2: Google Sign-In Library (Popup)**
+
+```javascript
+// Load Google Sign-In library
+<script src="https://accounts.google.com/gsi/client" async defer></script>;
+
+// Initialize
+function initGoogleSignIn() {
+    google.accounts.id.initialize({
+        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+        callback: handleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+    });
+
+    // Render button
+    google.accounts.id.renderButton(
+        document.getElementById("google-signin-button"),
+        {
+            theme: "outline",
+            size: "large",
+            text: "signin_with",
+            width: 300,
+        },
+    );
+
+    // Optional: One-tap
+    google.accounts.id.prompt();
+}
+
+async function handleCredentialResponse(response) {
+    try {
+        const res = await fetch("/api/v1/auth/google/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id_token: response.credential }),
+        });
+
+        const data = await res.json();
+
+        if (data.status === "success") {
+            // Save tokens
+            localStorage.setItem(
+                "access_token",
+                data.data.session.access_token,
+            );
+            localStorage.setItem(
+                "refresh_token",
+                data.data.session.refresh_token,
+            );
+
+            // Show welcome message for new users
+            if (data.data.is_new_user) {
+                showWelcomeMessage(data.data.user.full_name);
+            }
+
+            // Redirect to dashboard or onboarding
+            if (data.data.is_new_user) {
+                window.location.href = "/onboarding";
+            } else {
+                window.location.href = "/dashboard";
+            }
+        } else {
+            showError(data.message);
+        }
+    } catch (error) {
+        console.error("Google sign-in error:", error);
+        showError("Đăng nhập thất bại. Vui lòng thử lại.");
+    }
+}
+```
+
+#### 0.4 OAuth Callback Handler
+
+**Route**: `/auth/callback`
+
+Component để handle redirect từ Google OAuth flow:
+
+```typescript
+// AuthCallback.tsx
+import { useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+
+export function AuthCallback() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const token = searchParams.get('token');
+    const refreshToken = searchParams.get('refresh_token');
+    const error = searchParams.get('error');
+
+    if (error) {
+      // Handle error
+      const errorDesc = searchParams.get('error_description');
+      console.error('OAuth error:', error, errorDesc);
+      navigate('/login?error=' + encodeURIComponent(errorDesc || error));
+      return;
+    }
+
+    if (token && refreshToken) {
+      // Save tokens
+      localStorage.setItem('access_token', token);
+      localStorage.setItem('refresh_token', refreshToken);
+
+      // Check if new user
+      const isNewUser = searchParams.get('is_new_user') === 'true';
+
+      if (isNewUser) {
+        navigate('/onboarding');
+      } else {
+        navigate('/dashboard');
+      }
+    } else {
+      navigate('/login?error=invalid_callback');
+    }
+  }, [searchParams, navigate]);
+
+  return (
+    <div className=\"flex items-center justify-center min-h-screen\">
+      <div className=\"text-center\">
+        <div className=\"animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4\"></div>
+        <p className=\"text-gray-600\">Đang đăng nhập...</p>
+      </div>
+    </div>
+  );
+}
+```
+
+#### 0.5 Forgot Password Flow
+
+**Route**: `/forgot-password`
+
+**Layout:**
+
+```
+┌────────────────────────────────────────┐
+│                                        │
+│        Quên mật khẩu?                  │
+│                                        │
+│   Nhập email của bạn, chúng tôi sẽ    │
+│   gửi link reset password.             │
+│                                        │
+│   ┌────────────────────────────────┐   │
+│   │                                │   │
+│   │  Email                         │   │
+│   │  [user@example.com]            │   │
+│   │                                │   │
+│   │     [Gửi link reset]           │   │
+│   │                                │   │
+│   │  ← Quay lại đăng nhập          │   │
+│   │                                │   │
+│   └────────────────────────────────┘   │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+**Success Message:**
+
+```
+✅ Email đã được gửi!
+Vui lòng check inbox và click vào link để reset password.
+```
+
+#### 0.6 Reset Password Page
+
+**Route**: `/reset-password?token=xxx`
+
+```
+┌────────────────────────────────────────┐
+│                                        │
+│        Đặt mật khẩu mới                │
+│                                        │
+│   ┌────────────────────────────────┐   │
+│   │                                │   │
+│   │  New Password *                │   │
+│   │  [•••••••••••]  [👁️]           │   │
+│   │  ✓ At least 8 characters       │   │
+│   │                                │   │
+│   │  Confirm Password *            │   │
+│   │  [•••••••••••]  [👁️]           │   │
+│   │                                │   │
+│   │     [Đặt lại mật khẩu]         │   │
+│   │                                │   │
+│   └────────────────────────────────┘   │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+#### 0.7 Onboarding Flow (New Users)
+
+**Route**: `/onboarding`
+
+Sau khi đăng ký thành công, new user được hướng dẫn setup:
+
+**Step 1: Welcome**
+
+```
+┌────────────────────────────────────────┐
+│                                        │
+│   🎉 Chào mừng đến Finance Hub!        │
+│                                        │
+│   Chúng tôi sẽ giúp bạn setup          │
+│   account trong 3 bước đơn giản        │
+│                                        │
+│   [○──○──○]                           │
+│    1  2  3                             │
+│                                        │
+│        [Bắt đầu →]                     │
+│                                        │
+│        [Skip, đi thẳng vào app]        │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+**Step 2: Create First Account**
+
+```
+┌────────────────────────────────────────┐
+│  [●──○──○]  Bước 1/3                   │
+│                                        │
+│  Tạo tài khoản đầu tiên                │
+│                                        │
+│  Chọn loại tài khoản:                  │
+│  [💵 Tiền mặt]  [🏦 Ngân hàng]         │
+│                                        │
+│  Tên tài khoản                         │
+│  [Ví tiền mặt]                         │
+│                                        │
+│  Số dư hiện tại                        │
+│  [5,000,000] ₫                         │
+│                                        │
+│        [← Quay lại]  [Tiếp tục →]     │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+**Step 3: Set Budget (Optional)**
+
+```
+┌────────────────────────────────────────┐
+│  [●──●──○]  Bước 2/3                   │
+│                                        │
+│  Đặt ngân sách tháng (tùy chọn)        │
+│                                        │
+│  Giúp bạn kiểm soát chi tiêu           │
+│                                        │
+│  📁 Ăn uống: [3,000,000] ₫             │
+│  🚗 Di chuyển: [1,000,000] ₫           │
+│  🛍️ Mua sắm: [2,000,000] ₫            │
+│                                        │
+│        [← Quay lại]  [Tiếp tục →]     │
+│        [Bỏ qua bước này]               │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+**Step 4: All Set!**
+
+```
+┌────────────────────────────────────────┐
+│  [●──●──●]  Hoàn thành!                │
+│                                        │
+│        ✅ Sẵn sàng!                    │
+│                                        │
+│  Bạn đã setup xong. Bắt đầu            │
+│  ghi chép chi tiêu ngay thôi!          │
+│                                        │
+│  💡 Mẹo: Nhấn nút + để thêm            │
+│     giao dịch đầu tiên                 │
+│                                        │
+│        [Vào Dashboard →]               │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+### Business Logic
+
+#### Google OAuth Flow
+
+```typescript
+// Backend: Initiate OAuth
+async function initiateGoogleOAuth(req: Request, res: Response) {
+    const redirectUri = req.query.redirect_uri || process.env.FRONTEND_URL;
+
+    // Generate state for CSRF protection
+    const state = generateRandomString(32);
+
+    // Store state in session or Redis
+    await saveOAuthState(state, {
+        redirectUri,
+        createdAt: Date.now(),
+    });
+
+    // Build Google OAuth URL
+    const googleAuthUrl = new URL(
+        "https://accounts.google.com/o/oauth2/v2/auth",
+    );
+    googleAuthUrl.searchParams.append(
+        "client_id",
+        process.env.GOOGLE_CLIENT_ID,
+    );
+    googleAuthUrl.searchParams.append(
+        "redirect_uri",
+        process.env.GOOGLE_REDIRECT_URI,
+    );
+    googleAuthUrl.searchParams.append("response_type", "code");
+    googleAuthUrl.searchParams.append("scope", "openid profile email");
+    googleAuthUrl.searchParams.append("state", state);
+    googleAuthUrl.searchParams.append("access_type", "offline");
+    googleAuthUrl.searchParams.append("prompt", "consent");
+
+    // Redirect to Google
+    res.redirect(googleAuthUrl.toString());
+}
+
+// Backend: Handle callback
+async function handleGoogleCallback(req: Request, res: Response) {
+    const { code, state, error } = req.query;
+
+    // Handle error
+    if (error) {
+        return res.redirect(`${frontendUrl}/login?error=${error}`);
+    }
+
+    // Verify state
+    const savedState = await getOAuthState(state);
+    if (!savedState) {
+        return res.redirect(`${frontendUrl}/login?error=invalid_state`);
+    }
+
+    // Exchange code for tokens
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            code,
+            client_id: process.env.GOOGLE_CLIENT_ID,
+            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+            grant_type: "authorization_code",
+        }),
+    });
+
+    const tokens = await tokenResponse.json();
+
+    // Verify ID token
+    const userInfo = await verifyGoogleIdToken(tokens.id_token);
+
+    // Create or update user
+    let user = await UserRepository.findByEmail(userInfo.email);
+    let isNewUser = false;
+
+    if (!user) {
+        user = await UserRepository.create({
+            email: userInfo.email,
+            fullName: userInfo.name,
+            avatarUrl: userInfo.picture,
+            authProvider: "google",
+            googleId: userInfo.sub,
+            emailVerified: true,
+        });
+        isNewUser = true;
+    } else {
+        // Link Google to existing account
+        await UserRepository.update(user.id, {
+            googleId: userInfo.sub,
+            avatarUrl: userInfo.picture,
+            authProvider: "google",
+        });
+    }
+
+    // Create session with Supabase
+    const session = await createSupabaseSession(user);
+
+    // Redirect to frontend with tokens
+    const redirectUrl = new URL(savedState.redirectUri + "/auth/callback");
+    redirectUrl.searchParams.append("token", session.access_token);
+    redirectUrl.searchParams.append("refresh_token", session.refresh_token);
+    redirectUrl.searchParams.append("is_new_user", isNewUser.toString());
+
+    res.redirect(redirectUrl.toString());
+}
+```
+
+### Acceptance Criteria
+
+- ✅ User có thể register bằng email/password
+- ✅ User có thể login bằng email/password
+- ✅ User có thể login/register bằng Google (1 click)
+- ✅ Google button hiển thị đúng theo branding guidelines
+- ✅ Password validation hoạt động (strength indicator)
+- ✅ Email validation hoạt động
+- ✅ Forgot password flow hoạt động (send email)
+- ✅ Reset password với token hoạt động
+- ✅ OAuth flow handle errors gracefully
+- ✅ New users được redirect đến onboarding
+- ✅ Existing users được redirect đến dashboard
+- ✅ Google account linking hoạt động (email match)
+- ✅ Remember me checkbox hoạt động
+- ✅ Form validation realtime (blur/change)
+- ✅ Loading states hiển thị khi processing
+- ✅ Error messages clear và helpful
 
 ---
 

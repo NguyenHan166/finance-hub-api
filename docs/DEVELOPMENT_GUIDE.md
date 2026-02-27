@@ -80,6 +80,14 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_JWT_SECRET=your-jwt-secret
 
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
+
+# Frontend Configuration
+FRONTEND_URL=http://localhost:5173
+
 # CORS
 ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
@@ -205,6 +213,87 @@ defaultCategories.forEach((cat) => {
 1. Go to Supabase dashboard
 2. Authentication → Users → Add User
 3. Note down user ID for testing
+
+#### 4. Configure Google OAuth (Optional)
+
+If you want to enable Google Sign-In:
+
+**Step 1: Google Cloud Console Setup**
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create new project (or select existing)
+3. Enable **Google+ API**:
+    - Go to "APIs & Services" → "Library"
+    - Search "Google+ API"
+    - Click "Enable"
+
+4. Create OAuth 2.0 Credentials:
+    - Go to "APIs & Services" → "Credentials"
+    - Click "Create Credentials" → "OAuth client ID"
+    - Application type: "Web application"
+    - Name: "Finance Hub - Development"
+5. Configure Authorized URIs:
+
+    ```
+    Authorized JavaScript origins:
+    - http://localhost:5173
+    - http://localhost:8080
+
+    Authorized redirect URIs:
+    - http://localhost:8080/api/v1/auth/google/callback
+    - http://localhost:5173/auth/callback
+    ```
+
+6. Copy **Client ID** and **Client Secret**
+
+**Step 2: Supabase Setup**
+
+1. Go to Supabase Dashboard
+2. Authentication → Providers → Google
+3. Enable Google provider
+4. Paste Client ID and Client Secret from Google Console
+5. Save
+
+**Step 3: Update .env**
+
+```env
+GOOGLE_CLIENT_ID=123456789-abc.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-abc123...
+GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
+FRONTEND_URL=http://localhost:5173
+```
+
+**Step 4: Test OAuth Flow**
+
+```bash
+# Start backend
+go run cmd/api/main.go
+
+# In browser, visit:
+http://localhost:8080/api/v1/auth/google?redirect_uri=http://localhost:5173/auth/callback
+
+# Should redirect to Google login → back to your app with tokens
+```
+
+**Production Setup:**
+
+For production, update URIs in Google Cloud Console:
+
+```
+Authorized JavaScript origins:
+- https://your-domain.com
+
+Authorized redirect URIs:
+- https://api.your-domain.com/api/v1/auth/google/callback
+- https://your-domain.com/auth/callback
+```
+
+And update `.env`:
+
+```env
+GOOGLE_REDIRECT_URI=https://api.your-domain.com/api/v1/auth/google/callback
+FRONTEND_URL=https://your-domain.com
+```
 
 ---
 

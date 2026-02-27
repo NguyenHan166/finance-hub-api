@@ -11,6 +11,7 @@ import (
 type Router struct {
 	cfg                *config.Config
 	healthHandler      *HealthHandler
+	authHandler        *AuthHandler
 	accountHandler     *AccountHandler
 	transactionHandler *TransactionHandler
 	categoryHandler    *CategoryHandler
@@ -20,6 +21,7 @@ type Router struct {
 func NewRouter(
 	cfg *config.Config,
 	healthHandler *HealthHandler,
+	authHandler *AuthHandler,
 	accountHandler *AccountHandler,
 	transactionHandler *TransactionHandler,
 	categoryHandler *CategoryHandler,
@@ -27,6 +29,7 @@ func NewRouter(
 	return &Router{
 		cfg:                cfg,
 		healthHandler:      healthHandler,
+		authHandler:        authHandler,
 		accountHandler:     accountHandler,
 		transactionHandler: transactionHandler,
 		categoryHandler:    categoryHandler,
@@ -54,6 +57,26 @@ func (r *Router) Setup() *gin.Engine {
 	// API routes
 	api := router.Group("/api/" + r.cfg.Server.APIVersion)
 	{
+		// Authentication routes (no auth required)
+		auth := api.Group("/auth")
+		{
+			auth.POST("/register", r.authHandler.Register)
+			auth.POST("/login", r.authHandler.Login)
+			auth.POST("/refresh", r.authHandler.RefreshToken)
+			auth.GET("/google", r.authHandler.InitiateGoogleOAuth)
+			auth.GET("/google/callback", r.authHandler.HandleGoogleCallback)
+			auth.POST("/google/token", r.authHandler.VerifyGoogleToken)
+
+			// Protected auth routes
+			authProtected := auth.Group("")
+			authProtected.Use(middleware.AuthMiddleware(r.cfg.JWT.Secret))
+			{
+				authProtected.GET("/profile", r.authHandler.GetProfile)
+				authProtected.POST("/change-password", r.authHandler.ChangePassword)
+				authProtected.POST("/logout", r.authHandler.Logout)
+			}
+		}
+
 		// Protected routes (require authentication)
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(r.cfg.JWT.Secret))

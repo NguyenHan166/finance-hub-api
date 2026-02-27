@@ -465,6 +465,222 @@ func AuthMiddleware(cfg SupabaseConfig) gin.HandlerFunc {
 }
 ```
 
+### Google OAuth 2.0 Flow
+
+Finance Hub supports Google OAuth as an alternative authentication method:
+
+```
+┌─────────┐                                  ┌──────────┐
+│ Browser │                                  │  Google  │
+└────┬────┘                                  └────┬─────┘
+     │                                            │
+     │  1. Click "Sign in with Google"           │
+     │  ────────────────────────────────────►    │
+     │                                            │
+     │  2. GET /api/v1/auth/google                │
+     │  ─────────────────────────────┐            │
+     │                               │            │
+     │  3. Redirect to Google OAuth  │            │
+     │  ◄─────────────────────────────            │
+     │  (with state parameter)                    │
+     │  ──────────────────────────────────────────►
+     │                                            │
+     │  4. Google login & consent                 │
+     │  ◄──────────────────────────────────────────
+     │                                            │
+     │  5. Redirect to callback with 'code'       │
+     │  ──────────────────────►                   │
+     │  GET /auth/google/callback?code=xxx        │
+     │                         │                  │
+     │  6. Exchange code for tokens               │
+     │                         ├──────────────────►
+     │                         │                  │
+     │  7. Get ID token        │                  │
+     │                         ◄──────────────────┤
+     │                         │                  │
+     │  8. Verify token        │                  │
+     │                         │                  │
+     │  9. Create/update user in DB               │
+     │     (link to existing email if found)      │
+     │                         │                  │
+     │  10. Create Supabase session               │
+     │                         │                  │
+     │  11. Redirect to frontend with tokens      │
+     │  ◄────────────────────────                 │
+     │  /auth/callback?token=xxx&refresh_token=yyy│
+     │                                            │
+     │  12. Store tokens & redirect to dashboard  │
+     │                                            │
+```
+
+**Backend Implementation:**
+
+```go
+// 1. Initiate OAuth flow
+func (h *AuthHandler) InitiateGoogleOAuth(c *gin.Context) {
+    state := generateRandomState() // CSRF protection
+
+    // Save state in Redis/session
+    saveState(state, c.Query("redirect_uri"))
+
+    // Build Google OAuth URL
+    googleURL := fmt.Sprintf(
+        "https://accounts.google.com/o/oauth2/v2/auth?"+
+        "client_id=%s&"+
+        "redirect_uri=%s&"+
+        "response_type=code&"+
+        "scope=openid profile email&"+
+        "state=%s",
+        os.Getenv("GOOGLE_CLIENT_ID"),
+        os.Getenv("GOOGLE_REDIRECT_URI"),
+        state,
+    )
+
+    c.Redirect(http.StatusTemporaryRedirect, googleURL)
+}
+
+// 2. Handle OAuth callback
+func (h *AuthHandler) HandleGoogleCallback(c *gin.Context) {
+    code := c.Query("code")
+    state := c.Query("state")
+
+    // Verify state
+    savedState, err := getState(state)
+    if err != nil {
+        c.Redirect(http.StatusTemporaryRedirect,
+            frontendURL + "/login?error=invalid_state")
+        return
+    }
+
+    // Exchange code for tokens
+    tokens, err := exchangeCodeForTokens(code)
+    if err != nil {
+        c.Redirect(http.StatusTemporaryRedirect,
+            frontendURL + "/login?error=token_exchange_failed")
+        return
+    }
+
+    // Verify and decode ID token
+    userInfo, err := verifyGoogleIDToken(tokens.IDToken)
+    if err != nil {
+        c.Redirect(http.StatusTemporaryRedirect,
+            frontendURL + "/login?error=invalid_token")
+        return
+    }
+
+    // Create or link user
+    user, isNew, err := h.service.FindOrCreateGoogleUser(userInfo)
+    if err != nil {
+        c.Redirect(http.StatusTemporaryRedirect,
+            frontendURL + "/login?error=user_creation_failed")
+        return
+    }
+
+    // Create Supabase session
+    session, err := h.supabase.CreateSession(user.ID)
+    if err != nil {
+        c.Redirect(http.StatusTemporaryRedirect,
+            frontendURL + "/login?error=session_creation_failed")
+        return
+    }
+
+    // Redirect to frontend with tokens
+    redirectURL := fmt.Sprintf(
+        "%s/auth/callback?token=%s&refresh_token=%s&is_new_user=%t",
+        savedState.RedirectURI,
+        session.AccessToken,
+        session.RefreshToken,
+        isNew,
+    )
+
+    c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+}
+
+// 3. Find or create user from Google info
+func (s *AuthService) FindOrCreateGoogleUser(info GoogleUserInfo) (*User, bool, error) {
+    // Try to find existing user by email
+    user, err := s.repo.FindByEmail(info.Email)
+
+    if err == nil {
+        // User exists, link Google ID
+        user.GoogleID = info.Sub
+        user.AuthProvider = "google"
+        user.AvatarURL = info.Picture
+        s.repo.Update(user)
+        return user, false, nil
+    }
+
+    // User doesn't exist, create new
+    newUser := &User{
+        ID:           uuid.New().String(),
+        Email:        info.Email,
+        FullName:     info.Name,
+        AvatarURL:    info.Picture,
+        GoogleID:     info.Sub,
+        AuthProvider: "google",
+        EmailVerified: true,
+        CreatedAt:    time.Now(),
+        UpdatedAt:    time.Now(),
+    }
+
+    err = s.repo.Create(newUser)
+    if err != nil {
+        return nil, false, err
+    }
+
+    return newUser, true, nil
+}
+```
+
+**Frontend Implementation:**
+
+```tsx
+// AuthCallback.tsx - Handle redirect from backend
+export function AuthCallback() {
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const token = searchParams.get("token");
+        const refreshToken = searchParams.get("refresh_token");
+        const error = searchParams.get("error");
+        const isNewUser = searchParams.get("is_new_user") === "true";
+
+        if (error) {
+            toast.error("Login failed: " + error);
+            navigate("/login");
+            return;
+        }
+
+        if (token && refreshToken) {
+            // Store tokens
+            localStorage.setItem("access_token", token);
+            localStorage.setItem("refresh_token", refreshToken);
+
+            // Redirect based on user status
+            if (isNewUser) {
+                navigate("/onboarding");
+            } else {
+                navigate("/dashboard");
+            }
+        } else {
+            navigate("/login?error=missing_tokens");
+        }
+    }, [searchParams, navigate]);
+
+    return <LoadingSpinner text="Signing you in..." />;
+}
+```
+
+**Security Considerations:**
+
+1. **State Parameter**: Prevents CSRF attacks by validating the state parameter
+2. **HTTPS Only**: OAuth must use HTTPS in production
+3. **Token Verification**: Always verify Google ID token signature with Google's public keys
+4. **Account Linking**: Link Google accounts to existing email accounts automatically
+5. **Session Expiry**: Use short-lived access tokens with refresh tokens
+6. **Scope Limitation**: Only request necessary scopes (openid, profile, email)
+
 ---
 
 ## Error Handling

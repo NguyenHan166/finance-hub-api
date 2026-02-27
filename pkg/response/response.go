@@ -57,6 +57,30 @@ func UnauthorizedResponse(c *gin.Context, message string) {
 	})
 }
 
+// BadRequestResponse sends a bad request response
+func BadRequestResponse(c *gin.Context, message string) {
+	c.JSON(http.StatusBadRequest, Response{
+		Success: false,
+		Message: message,
+	})
+}
+
+// ForbiddenResponse sends a forbidden response
+func ForbiddenResponse(c *gin.Context, message string) {
+	c.JSON(http.StatusForbidden, Response{
+		Success: false,
+		Message: message,
+	})
+}
+
+// ConflictResponse sends a conflict response
+func ConflictResponse(c *gin.Context, message string) {
+	c.JSON(http.StatusConflict, Response{
+		Success: false,
+		Message: message,
+	})
+}
+
 // InternalErrorResponse sends an internal server error response
 func InternalErrorResponse(c *gin.Context, err error) {
 	c.JSON(http.StatusInternalServerError, Response{

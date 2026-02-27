@@ -1,0 +1,323 @@
+{
+    "info": {
+        "name": "Finance Hub - Authentication API",
+        "description": "Complete authentication endpoints for Finance Hub API",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Health Check",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "{{base_url}}/health",
+                    "host": ["{{base_url}}"],
+                    "path": ["health"]
+                }
+            }
+        },
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Register",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 201) {",
+                                    "    const response = pm.response.json();",
+                                    "    pm.environment.set('access_token', response.data.access_token);",
+                                    "    pm.environment.set('refresh_token', response.data.refresh_token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"password\": \"{{test_password}}\",\n  \"confirm_password\": \"{{test_password}}\",\n  \"full_name\": \"Test User\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/register",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "auth", "register"]
+                        }
+                    }
+                },
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    pm.environment.set('access_token', response.data.access_token);",
+                                    "    pm.environment.set('refresh_token', response.data.refresh_token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"{{test_email}}\",\n  \"password\": \"{{test_password}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/login",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "auth", "login"]
+                        }
+                    }
+                },
+                {
+                    "name": "Refresh Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    pm.environment.set('access_token', response.data.access_token);",
+                                    "    pm.environment.set('refresh_token', response.data.refresh_token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/refresh",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "auth", "refresh"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Profile",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/profile",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "auth", "profile"]
+                        }
+                    }
+                },
+                {
+                    "name": "Change Password",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"old_password\": \"{{test_password}}\",\n  \"new_password\": \"NewPass123\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/change-password",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "auth", "change-password"]
+                        }
+                    }
+                },
+                {
+                    "name": "Logout",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/logout",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "auth", "logout"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Google OAuth",
+            "item": [
+                {
+                    "name": "Initiate Google OAuth",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/google?redirect_uri=http://localhost:5173",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "auth", "google"],
+                            "query": [
+                                {
+                                    "key": "redirect_uri",
+                                    "value": "http://localhost:5173"
+                                }
+                            ]
+                        },
+                        "description": "Open this URL in browser to start Google OAuth flow"
+                    }
+                },
+                {
+                    "name": "Verify Google ID Token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "if (pm.response.code === 200) {",
+                                    "    const response = pm.response.json();",
+                                    "    pm.environment.set('access_token', response.data.access_token);",
+                                    "    pm.environment.set('refresh_token', response.data.refresh_token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"id_token\": \"YOUR_GOOGLE_ID_TOKEN_HERE\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/auth/google/token",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "auth", "google", "token"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Accounts (Protected)",
+            "item": [
+                {
+                    "name": "Get All Accounts",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/accounts",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "accounts"]
+                        }
+                    }
+                },
+                {
+                    "name": "Create Account",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{access_token}}"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Main Checking\",\n  \"type\": \"checking\",\n  \"balance\": 5000000,\n  \"currency\": \"VND\",\n  \"bank_name\": \"Vietcombank\"\n}"
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/accounts",
+                            "host": ["{{base_url}}"],
+                            "path": ["api", "v1", "accounts"]
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8080",
+            "type": "string"
+        },
+        {
+            "key": "test_email",
+            "value": "test@example.com",
+            "type": "string"
+        },
+        {
+            "key": "test_password",
+            "value": "Test1234",
+            "type": "string"
+        },
+        {
+            "key": "access_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "refresh_token",
+            "value": "",
+            "type": "string"
+        }
+    ]
+}

@@ -11,13 +11,14 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Supabase SupabaseConfig
-	JWT      JWTConfig
-	CORS     CORSConfig
-	Storage  StorageConfig
-	Logging  LoggingConfig
+	Server      ServerConfig
+	Database    DatabaseConfig
+	Supabase    SupabaseConfig
+	JWT         JWTConfig
+	GoogleOAuth GoogleOAuthConfig
+	CORS        CORSConfig
+	Storage     StorageConfig
+	Logging     LoggingConfig
 }
 
 // ServerConfig holds server configuration
@@ -44,6 +45,13 @@ type SupabaseConfig struct {
 type JWTConfig struct {
 	Secret    string
 	ExpiresIn string
+}
+
+// GoogleOAuthConfig holds Google OAuth configuration
+type GoogleOAuthConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
 }
 
 // CORSConfig holds CORS configuration
@@ -85,6 +93,11 @@ func Load() (*Config, error) {
 		JWT: JWTConfig{
 			Secret:    getEnv("JWT_SECRET", "change-this-secret"),
 			ExpiresIn: getEnv("JWT_EXPIRES_IN", "24h"),
+		},
+		GoogleOAuth: GoogleOAuthConfig{
+			ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+			ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+			RedirectURI:  getEnv("GOOGLE_REDIRECT_URI", ""),
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
