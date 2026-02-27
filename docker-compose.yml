@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database (for local development without Supabase)
+  postgres:
+    image: postgres:15-alpine
+    container_name: finance-hub-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: finance_hub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - finance-hub-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Go API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finance-hub-api
+    environment:
+      PORT: 8080
+      ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: finance_hub
+      DB_SSLMODE: disable
+      JWT_SECRET: local-development-secret-key
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - finance-hub-network
+    volumes:
+      - .:/app
+    command: air -c .air.toml
+
+  # Redis (optional - for caching)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: finance-hub-redis
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - finance-hub-network
+
+volumes:
+  postgres_data:
+
+networks:
+  finance-hub-network:
+    driver: bridge
