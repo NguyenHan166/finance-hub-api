@@ -3,12 +3,15 @@ package utils
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"finance-hub-api/internal/models"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -64,8 +67,11 @@ func (g *GoogleOAuthClient) ExchangeCodeForToken(ctx context.Context, code strin
 	data.Set("redirect_uri", g.RedirectURI)
 	data.Set("grant_type", "authorization_code")
 
+	fmt.Printf("Exchanging code with redirect_uri: %s\n", g.RedirectURI)
+
 	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
+		fmt.Printf("Error creating request: %v\n", err)
 		return "", err
 	}
 
@@ -74,16 +80,19 @@ func (g *GoogleOAuthClient) ExchangeCodeForToken(ctx context.Context, code strin
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Printf("Error doing request: %v\n", err)
 		return "", err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		fmt.Printf("Error reading body: %v\n", err)
 		return "", err
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Token exchange failed (status %d): %s\n", resp.StatusCode, string(body))
 		return "", fmt.Errorf("failed to exchange code: %s", string(body))
 	}
 
@@ -95,17 +104,22 @@ func (g *GoogleOAuthClient) ExchangeCodeForToken(ctx context.Context, code strin
 	}
 
 	if err := json.Unmarshal(body, &tokenResponse); err != nil {
+		fmt.Printf("Error unmarshaling response: %v\n", err)
 		return "", err
 	}
 
+	fmt.Printf("Token exchange successful, got ID token\n")
 	return tokenResponse.IDToken, nil
 }
 
 // VerifyIDToken verifies Google ID token and extracts user info
 func (g *GoogleOAuthClient) VerifyIDToken(ctx context.Context, idToken string) (*models.GoogleUserInfo, error) {
+	fmt.Println("Starting ID token verification...")
+	
 	// Parse token without verification first to get the kid
 	_, _, err := new(jwt.Parser).ParseUnverified(idToken, jwt.MapClaims{})
 	if err != nil {
+		fmt.Printf("Error parsing unverified token: %v\n", err)
 		return nil, ErrInvalidGoogleToken
 	}
 
@@ -114,37 +128,46 @@ func (g *GoogleOAuthClient) VerifyIDToken(ctx context.Context, idToken string) (
 	_, err = jwt.ParseWithClaims(idToken, claims, func(token *jwt.Token) (interface{}, error) {
 		// Verify signing method
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			fmt.Printf("Unexpected signing method: %v\n", token.Header["alg"])
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 
 		// Get Google's public keys
 		kid, ok := token.Header["kid"].(string)
 		if !ok {
+			fmt.Println("kid not found in token header")
 			return nil, errors.New("kid not found in token header")
 		}
 
+		fmt.Printf("Fetching public key for kid: %s\n", kid)
 		return getGooglePublicKey(ctx, kid)
 	})
 
 	if err != nil {
+		fmt.Printf("Error verifying token: %v\n", err)
 		return nil, ErrInvalidGoogleToken
 	}
+
+	fmt.Println("Token signature verified successfully")
 
 	// Verify issuer
 	iss, ok := claims["iss"].(string)
 	if !ok || (iss != "https://accounts.google.com" && iss != "accounts.google.com") {
+		fmt.Printf("Invalid issuer: %v\n", iss)
 		return nil, ErrInvalidGoogleToken
 	}
 
 	// Verify audience (client ID)
 	aud, ok := claims["aud"].(string)
 	if !ok || aud != g.ClientID {
+		fmt.Printf("Invalid audience: %v (expected: %s)\n", aud, g.ClientID)
 		return nil, ErrInvalidGoogleToken
 	}
 
 	// Verify expiration
 	exp, ok := claims["exp"].(float64)
 	if !ok || time.Now().Unix() > int64(exp) {
+		fmt.Printf("Token expired or invalid exp: %v\n", exp)
 		return nil, ErrTokenExpired
 	}
 
@@ -160,6 +183,7 @@ func (g *GoogleOAuthClient) VerifyIDToken(ctx context.Context, idToken string) (
 		Locale:        getStringClaim(claims, "locale"),
 	}
 
+	fmt.Printf("Token verified, user: %s (%s)\n", userInfo.Name, userInfo.Email)
 	return userInfo, nil
 }
 
@@ -170,18 +194,21 @@ func getGooglePublicKey(ctx context.Context, kid string) (interface{}, error) {
 	
 	req, err := http.NewRequestWithContext(ctx, "GET", keysURL, nil)
 	if err != nil {
+		fmt.Printf("Error creating request: %v\n", err)
 		return nil, err
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Printf("Error fetching public keys: %v\n", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		fmt.Printf("Error reading response body: %v\n", err)
 		return nil, err
 	}
 
@@ -197,19 +224,52 @@ func getGooglePublicKey(ctx context.Context, kid string) (interface{}, error) {
 	}
 
 	if err := json.Unmarshal(body, &keys); err != nil {
+		fmt.Printf("Error unmarshaling keys: %v\n", err)
 		return nil, err
 	}
 
 	// Find the key with matching kid
 	for _, key := range keys.Keys {
 		if key.Kid == kid {
-			// Convert JWK to public key
-			// For production, use a proper JWK library
-			// This is a simplified version
-			return []byte(key.N), nil
+			fmt.Printf("Found matching key: kid=%s, alg=%s\n", key.Kid, key.Alg)
+			
+			// Decode N (modulus) from base64url
+			nBytes, err := base64.RawURLEncoding.DecodeString(key.N)
+			if err != nil {
+				fmt.Printf("Error decoding modulus: %v\n", err)
+				return nil, err
+			}
+
+			// Decode E (exponent) from base64url
+			eBytes, err := base64.RawURLEncoding.DecodeString(key.E)
+			if err != nil {
+				fmt.Printf("Error decoding exponent: %v\n", err)
+				return nil, err
+			}
+
+			// Convert E bytes to int
+			var eInt int
+			if len(eBytes) == 3 {
+				eInt = int(binary.BigEndian.Uint32(append([]byte{0}, eBytes...)))
+			} else if len(eBytes) == 4 {
+				eInt = int(binary.BigEndian.Uint32(eBytes))
+			} else {
+				// Fallback for other lengths
+				eInt = 65537 // Common RSA exponent
+			}
+
+			// Create RSA public key
+			publicKey := &rsa.PublicKey{
+				N: new(big.Int).SetBytes(nBytes),
+				E: eInt,
+			}
+
+			fmt.Println("Successfully created RSA public key")
+			return publicKey, nil
 		}
 	}
 
+	fmt.Printf("Public key not found for kid: %s\n", kid)
 	return nil, errors.New("public key not found")
 }
 

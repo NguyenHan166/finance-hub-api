@@ -7,6 +7,7 @@ import (
 	"finance-hub-api/pkg/response"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 )
@@ -141,46 +142,48 @@ func (h *AuthHandler) HandleGoogleCallback(c *gin.Context) {
 	state := c.Query("state")
 	errorParam := c.Query("error")
 
+	// Get redirect URI from cookie first
+	redirectURI, _ := c.Cookie("oauth_redirect_uri")
+	if redirectURI == "" {
+		redirectURI = "http://localhost:3000/auth/callback" // Default frontend URL
+	}
+
 	// Check for OAuth errors
 	if errorParam != "" {
 		errorDesc := c.Query("error_description")
-		redirectToFrontend(c, "", "", errorParam, errorDesc)
+		redirectToFrontend(c, redirectURI, "", errorParam, errorDesc)
 		return
 	}
 
 	// Verify state (CSRF protection)
 	savedState, err := c.Cookie("oauth_state")
 	if err != nil || savedState != state {
-		redirectToFrontend(c, "", "", "invalid_state", "Invalid state parameter")
+		redirectToFrontend(c, redirectURI, "", "invalid_state", "Invalid state parameter")
 		return
 	}
 
-	// Clear state cookie
+	// Clear cookies
 	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
-
-	// Get redirect URI from cookie
-	redirectURI, _ := c.Cookie("oauth_redirect_uri")
-	if redirectURI == "" {
-		redirectURI = "http://localhost:5173" // Default frontend URL
-	}
 	c.SetCookie("oauth_redirect_uri", "", -1, "/", "", false, true)
 
 	// Handle OAuth callback
 	authResp, err := h.authService.HandleGoogleCallback(c.Request.Context(), code)
 	if err != nil {
+		fmt.Printf("Google OAuth callback error: %v\n", err)
 		redirectToFrontend(c, redirectURI, "", "authentication_failed", err.Error())
 		return
 	}
 
-	// Redirect to frontend with tokens
+	// Redirect to frontend with tokens (URL encoded)
 	redirectURL := fmt.Sprintf(
-		"%s/auth/callback?token=%s&refresh_token=%s&is_new_user=%t",
+		"%s?token=%s&refresh_token=%s&is_new_user=%t",
 		redirectURI,
-		authResp.AccessToken,
-		authResp.RefreshToken,
+		url.QueryEscape(authResp.AccessToken),
+		url.QueryEscape(authResp.RefreshToken),
 		authResp.IsNewUser,
 	)
 
+	fmt.Printf("Redirecting to: %s\n", redirectURL[:100]+"...") // Log first 100 chars
 	c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 }
 
@@ -277,19 +280,150 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	response.SuccessResponse(c, http.StatusOK, "Logged out successfully", nil)
 }
 
+// SendVerificationEmail sends verification email to user
+// POST /api/v1/auth/send-verification-email
+func (h *AuthHandler) SendVerificationEmail(c *gin.Context) {
+	// Get user ID from JWT middleware
+	userID, exists := c.Get("user_id")
+	if !exists {
+		response.UnauthorizedResponse(c, "User not authenticated")
+		return
+	}
+
+	err := h.authService.SendVerificationEmail(c.Request.Context(), userID.(string))
+	if err != nil {
+		if err.Error() == "email already verified" {
+			response.BadRequestResponse(c, "Email already verified")
+		} else {
+			response.InternalErrorResponse(c, err)
+		}
+		return
+	}
+
+	response.SuccessResponse(c, http.StatusOK, "Verification email sent successfully", nil)
+}
+
+// VerifyEmail verifies user email with token
+// POST /api/v1/auth/verify-email
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	var req models.VerifyEmailRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationErrorResponse(c, err)
+		return
+	}
+
+	err := h.authService.VerifyEmail(c.Request.Context(), req.Token)
+	if err != nil {
+		switch err {
+		case services.ErrInvalidToken:
+			response.BadRequestResponse(c, "Invalid verification token")
+		case services.ErrTokenExpired:
+			response.BadRequestResponse(c, "Verification token has expired")
+		case services.ErrTokenAlreadyUsed:
+			response.BadRequestResponse(c, "Verification token already used")
+		default:
+			response.InternalErrorResponse(c, err)
+		}
+		return
+	}
+
+	response.SuccessResponse(c, http.StatusOK, "Email verified successfully", nil)
+}
+
+// RequestPasswordReset sends password reset email
+// POST /api/v1/auth/forgot-password
+func (h *AuthHandler) RequestPasswordReset(c *gin.Context) {
+	var req models.ResetPasswordRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationErrorResponse(c, err)
+		return
+	}
+
+	err := h.authService.RequestPasswordReset(c.Request.Context(), req.Email)
+	if err != nil {
+		if err.Error() == "cannot reset password for Google-only accounts" {
+			response.BadRequestResponse(c, "Cannot reset password for Google-only accounts. Please sign in with Google.")
+		} else {
+			// Don't expose internal errors for security
+			response.SuccessResponse(c, http.StatusOK, "If the email exists, a password reset link has been sent", nil)
+			return
+		}
+		return
+	}
+
+	response.SuccessResponse(c, http.StatusOK, "If the email exists, a password reset link has been sent", nil)
+}
+
+// ResetPassword resets user password with token
+// POST /api/v1/auth/reset-password
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req models.ConfirmResetPasswordRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationErrorResponse(c, err)
+		return
+	}
+
+	err := h.authService.ResetPassword(c.Request.Context(), req.Token, req.NewPassword)
+	if err != nil {
+		switch err {
+		case services.ErrInvalidToken:
+			response.BadRequestResponse(c, "Invalid reset token")
+		case services.ErrTokenExpired:
+			response.BadRequestResponse(c, "Reset token has expired. Please request a new one.")
+		case services.ErrTokenAlreadyUsed:
+			response.BadRequestResponse(c, "Reset token already used. Please request a new one.")
+		case services.ErrWeakPassword:
+			response.BadRequestResponse(c, "Password must be at least 8 characters with uppercase, lowercase, and number")
+		default:
+			response.InternalErrorResponse(c, err)
+		}
+		return
+	}
+
+	response.SuccessResponse(c, http.StatusOK, "Password reset successfully", nil)
+}
+
+// ResendVerificationEmail resends verification email
+// POST /api/v1/auth/resend-verification-email
+func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
+	var req models.ResetPasswordRequest // Reuse same struct (just need email)
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationErrorResponse(c, err)
+		return
+	}
+
+	err := h.authService.ResendVerificationEmail(c.Request.Context(), req.Email)
+	if err != nil {
+		if err == services.ErrUserNotFound {
+			response.NotFoundResponse(c, "User")
+		} else if err.Error() == "email already verified" {
+			response.BadRequestResponse(c, "Email already verified")
+		} else {
+			response.InternalErrorResponse(c, err)
+		}
+		return
+	}
+
+	response.SuccessResponse(c, http.StatusOK, "Verification email sent successfully", nil)
+}
+
 // Helper function to redirect to frontend with error
 func redirectToFrontend(c *gin.Context, redirectURI, token, errorCode, errorDesc string) {
 	if redirectURI == "" {
-		redirectURI = "http://localhost:5173" // Default
+		redirectURI = "http://localhost:3000/auth/callback" // Default
 	}
 
 	if errorCode != "" {
-		redirectURL := fmt.Sprintf("%s/login?error=%s", redirectURI, errorCode)
+		redirectURL := fmt.Sprintf("%s?error=%s", redirectURI, errorCode)
 		if errorDesc != "" {
 			redirectURL += fmt.Sprintf("&error_description=%s", errorDesc)
 		}
 		c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 	} else {
-		c.Redirect(http.StatusTemporaryRedirect, redirectURI+"/auth/callback?token="+token)
+		c.Redirect(http.StatusTemporaryRedirect, redirectURI+"?token="+token)
 	}
 }

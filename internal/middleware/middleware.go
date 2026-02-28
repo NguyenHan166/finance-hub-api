@@ -9,7 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// AuthMiddleware validates JWT tokens from Supabase
+// AuthMiddleware validates JWT tokens
 func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get token from Authorization header

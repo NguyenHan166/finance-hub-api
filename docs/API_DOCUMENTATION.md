@@ -6,12 +6,12 @@ RESTful API cho ứng dụng quản lý tài chính cá nhân. Base URL: `http:/
 
 ## Authentication Overview
 
-Tất cả endpoints (trừ Authentication endpoints và Health check) yêu cầu JWT token từ Supabase.
+Tất cả endpoints (trừ Authentication endpoints và Health check) yêu cầu JWT token.
 
 **Headers:**
 
 ```
-Authorization: Bearer <supabase_jwt_token>
+Authorization: Bearer <jwt_token>
 ```
 
 User ID được extract từ JWT token và tự động inject vào context.
@@ -24,7 +24,7 @@ User ID được extract từ JWT token và tự động inject vào context.
 
 **POST** `/auth/register`
 
-Đăng ký user mới. Authentication được handle bởi Supabase.
+Đăng ký user mới với email và password.
 
 **Request Body:**
 
@@ -79,7 +79,7 @@ User ID được extract từ JWT token và tự động inject vào context.
 
 **POST** `/auth/login`
 
-Đăng nhập user. Authentication được handle bởi Supabase.
+Đăng nhập user với email và password.
 
 **Request Body:**
 
@@ -462,6 +462,187 @@ Nếu user đã có account với email, Google OAuth sẽ:
 - Update avatar_url từ Google
 - Set `auth_provider` = "google"
 - User có thể login bằng cả email/password và Google
+
+---
+
+### 0.11 Send Verification Email
+
+**POST** `/auth/send-verification-email`
+
+Gửi email verification link cho user sau khi đăng ký.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response 200:**
+
+```json
+{
+    "status": "success",
+    "message": "Verification email sent successfully"
+}
+```
+
+**Response 400:**
+
+```json
+{
+    "status": "error",
+    "message": "Email already verified"
+}
+```
+
+**Response 429:**
+
+```json
+{
+    "status": "error",
+    "message": "Rate limit exceeded. Please try again later."
+}
+```
+
+**Notes:**
+
+- Endpoint có rate limiting: tối đa 5 requests/phút
+- Email chứa link verification: `{FRONTEND_URL}/auth/verify-email?token={token}`
+- Token có hiệu lực 24 giờ
+
+---
+
+### 0.12 Verify Email
+
+**POST** `/auth/verify-email`
+
+Xác thực email address với token từ email.
+
+**Request Body:**
+
+```json
+{
+    "token": "verification_token_from_email"
+}
+```
+
+**Response 200:**
+
+```json
+{
+    "status": "success",
+    "message": "Email verified successfully"
+}
+```
+
+**Response 400:**
+
+```json
+{
+    "status": "error",
+    "message": "Invalid verification token",
+    "code": "INVALID_TOKEN"
+}
+```
+
+**Response 400 (Expired):**
+
+```json
+{
+    "status": "error",
+    "message": "Token has expired",
+    "code": "TOKEN_EXPIRED"
+}
+```
+
+**Response 400 (Already Used):**
+
+```json
+{
+    "status": "error",
+    "message": "Token already used",
+    "code": "TOKEN_USED"
+}
+```
+
+**Notes:**
+
+- Sau khi verify thành công, user có thể sử dụng tất cả features
+- Token chỉ sử dụng được 1 lần
+- Token expired sau 24 giờ
+
+---
+
+### 0.13 Resend Verification Email
+
+**POST** `/auth/resend-verification-email`
+
+Gửi lại email verification nếu user chưa verify hoặc token đã expired.
+
+**Headers:**
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Response 200:**
+
+```json
+{
+    "status": "success",
+    "message": "Verification email sent successfully"
+}
+```
+
+**Response 400:**
+
+```json
+{
+    "status": "error",
+    "message": "Email already verified"
+}
+```
+
+**Response 429:**
+
+```json
+{
+    "status": "error",
+    "message": "Rate limit exceeded. Please try again later."
+}
+```
+
+**Notes:**
+
+- Endpoint có rate limiting: tối đa 5 requests/phút
+- Token cũ sẽ bị invalidate khi tạo token mới
+- Tự động gửi lại email với token mới
+
+---
+
+### Rate Limiting
+
+**Authentication Endpoints Rate Limits:**
+
+Các endpoints sau có strict rate limiting (5 requests/phút):
+
+- `POST /auth/login`
+- `POST /auth/register`
+- `POST /auth/forgot-password`
+- `POST /auth/reset-password`
+- `POST /auth/send-verification-email`
+- `POST /auth/resend-verification-email`
+
+Các API endpoints khác có moderate rate limiting (60 requests/phút).
+
+**Rate Limit Response 429:**
+
+```json
+{
+    "status": "error",
+    "message": "Rate limit exceeded. Please try again later."
+}
+```
 
 ---
 

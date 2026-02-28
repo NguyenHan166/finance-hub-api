@@ -60,12 +60,19 @@ func (r *Router) Setup() *gin.Engine {
 		// Authentication routes (no auth required)
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", r.authHandler.Register)
-			auth.POST("/login", r.authHandler.Login)
+			// Apply strict rate limiting to sensitive endpoints
+			auth.POST("/register", middleware.StrictRateLimitMiddleware(), r.authHandler.Register)
+			auth.POST("/login", middleware.StrictRateLimitMiddleware(), r.authHandler.Login)
+			auth.POST("/forgot-password", middleware.StrictRateLimitMiddleware(), r.authHandler.RequestPasswordReset)
+			auth.POST("/reset-password", middleware.StrictRateLimitMiddleware(), r.authHandler.ResetPassword)
+			auth.POST("/resend-verification-email", middleware.StrictRateLimitMiddleware(), r.authHandler.ResendVerificationEmail)
+			
+			// Moderate rate limiting for other auth endpoints
 			auth.POST("/refresh", r.authHandler.RefreshToken)
 			auth.GET("/google", r.authHandler.InitiateGoogleOAuth)
 			auth.GET("/google/callback", r.authHandler.HandleGoogleCallback)
 			auth.POST("/google/token", r.authHandler.VerifyGoogleToken)
+			auth.POST("/verify-email", r.authHandler.VerifyEmail)
 
 			// Protected auth routes
 			authProtected := auth.Group("")
@@ -74,12 +81,14 @@ func (r *Router) Setup() *gin.Engine {
 				authProtected.GET("/profile", r.authHandler.GetProfile)
 				authProtected.POST("/change-password", r.authHandler.ChangePassword)
 				authProtected.POST("/logout", r.authHandler.Logout)
+				authProtected.POST("/send-verification-email", r.authHandler.SendVerificationEmail)
 			}
 		}
 
 		// Protected routes (require authentication)
 		protected := api.Group("")
 		protected.Use(middleware.AuthMiddleware(r.cfg.JWT.Secret))
+		protected.Use(middleware.ModerateRateLimitMiddleware()) // Rate limit for all API endpoints
 		{
 			// Account routes
 			accounts := protected.Group("/accounts")

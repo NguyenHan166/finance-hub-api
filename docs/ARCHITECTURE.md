@@ -44,7 +44,7 @@ Finance Hub là ứng dụng quản lý tài chính cá nhân với kiến trúc
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│           External Services (Supabase, VietQR, AI)           │
+│           External Services (VietQR, AI, Google OAuth)    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -130,7 +130,7 @@ Mỗi layer có trách nhiệm rõ ràng:
 - **Language**: Go 1.22
 - **Framework**: Gin (HTTP router)
 - **Database**: MongoDB (via official mongo-driver)
-- **Auth**: Supabase JWT validation
+- **Auth**: Custom JWT with bcrypt
 - **Config**: godotenv (environment variables)
 - **Logging**: Custom logger (pkg/logger)
 
@@ -140,8 +140,8 @@ Mỗi layer có trách nhiệm rõ ràng:
 - **Build Tool**: Vite
 - **UI Library**: Shadcn/UI (Radix UI + Tailwind)
 - **State Management**: React Context API
-- **HTTP Client**: fetch API
-- **Auth**: Supabase Client
+- **HTTP Client**: Axios
+- **Auth**: Custom Auth Context + JWT
 - **Charts**: Recharts
 - **Date**: date-fns
 - **Icons**: Lucide React
@@ -149,7 +149,8 @@ Mỗi layer có trách nhiệm rõ ràng:
 ### Infrastructure
 
 - **Database**: MongoDB Atlas (Cloud)
-- **Auth Provider**: Supabase
+- **Auth Provider**: Custom JWT (Backend)
+- **OAuth**: Google OAuth 2.0
 - **Deployment**: Docker (ready)
 - **CI/CD**: GitHub Actions (ready)
 
@@ -312,7 +313,7 @@ router.Use(middleware.CORS())
 
 // Protected routes
 auth := router.Group("/api/v1")
-auth.Use(middleware.AuthMiddleware(cfg.Supabase))
+auth.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
 {
     auth.GET("/accounts", accountHandler.GetAllAccounts)
 }
@@ -411,14 +412,14 @@ Frontend displays chat message + cards
 
 ## Authentication Flow
 
-### Supabase JWT Authentication
+### Custom JWT Authentication
 
 ```
-1. User registers/logs in via Supabase
+1. User registers/logs in via Backend API
    ↓
-2. Supabase returns JWT token
+2. Backend generates JWT token (access + refresh)
    ↓
-3. Frontend stores token in memory/localStorage
+3. Frontend stores tokens in localStorage
    ↓
 4. Frontend includes token in Authorization header
    ↓
@@ -446,13 +447,13 @@ Frontend displays chat message + cards
 **Middleware Implementation:**
 
 ```go
-func AuthMiddleware(cfg SupabaseConfig) gin.HandlerFunc {
+func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
     return func(c *gin.Context) {
         // Extract token from Authorization header
         token := extractToken(c)
 
-        // Validate JWT with Supabase public key
-        claims, err := validateJWT(token, cfg.JWTSecret)
+        // Validate JWT with secret key
+        claims, err := validateJWT(token, jwtSecret)
         if err != nil {
             c.AbortWithStatusJSON(401, gin.H{"error": "Unauthorized"})
             return
@@ -503,7 +504,7 @@ Finance Hub supports Google OAuth as an alternative authentication method:
      │  9. Create/update user in DB               │
      │     (link to existing email if found)      │
      │                         │                  │
-     │  10. Create Supabase session               │
+     │  10. Generate JWT tokens                    │
      │                         │                  │
      │  11. Redirect to frontend with tokens      │
      │  ◄────────────────────────                 │
@@ -576,11 +577,11 @@ func (h *AuthHandler) HandleGoogleCallback(c *gin.Context) {
         return
     }
 
-    // Create Supabase session
-    session, err := h.supabase.CreateSession(user.ID)
+    // Generate JWT tokens
+    authResponse, err := h.authService.generateAuthResponse(user, isNew)
     if err != nil {
         c.Redirect(http.StatusTemporaryRedirect,
-            frontendURL + "/login?error=session_creation_failed")
+            frontendURL + "/login?error=token_generation_failed")
         return
     }
 
@@ -813,7 +814,7 @@ export const AccountService = new AccountServiceClass();
 
 ### Backend Security
 
-1. **JWT Validation**: All protected routes validate Supabase JWT
+1. **JWT Validation**: All protected routes validate custom JWT tokens
 2. **User Isolation**: All queries filter by `user_id` from JWT
 3. **Input Validation**: Validate all inputs at handler level
 4. **SQL/NoSQL Injection**: Use parameterized queries (MongoDB BSON)
@@ -953,7 +954,9 @@ services:
             - "8080:8080"
         environment:
             - MONGODB_URI=${MONGODB_URI}
-            - SUPABASE_URL=${SUPABASE_URL}
+            - JWT_SECRET=${JWT_SECRET}
+            - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+            - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
 
     frontend:
         build: ./my-finance-hub

@@ -39,12 +39,13 @@ func main() {
 
 	// Initialize repositories
 	userRepo := repositories.NewUserRepository(db.Database)
+	tokenRepo := repositories.NewVerificationTokenRepository(db.Database)
 	accountRepo := repositories.NewAccountRepository(db.Database)
 	transactionRepo := repositories.NewTransactionRepository(db.Database)
 	categoryRepo := repositories.NewCategoryRepository(db.Database)
 
 	// Initialize services
-	authService := services.NewAuthService(userRepo, cfg)
+	authService := services.NewAuthService(userRepo, tokenRepo, cfg)
 	accountService := services.NewAccountService(accountRepo)
 	transactionService := services.NewTransactionService(transactionRepo, accountRepo)
 	categoryService := services.NewCategoryService(categoryRepo)
