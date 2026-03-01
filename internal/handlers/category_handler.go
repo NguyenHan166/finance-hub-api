@@ -65,24 +65,57 @@ func (h *CategoryHandler) GetAllCategories(c *gin.Context) {
 	userIDStr, _ := c.Get("user_id")
 	userID := userIDStr.(string)
 
-	// Check if filtering by type
+	// Check query parameters
 	categoryType := c.Query("type")
+	filter := c.Query("filter")
+	parentID := c.Query("parent_id")
 	
 	var categories []models.Category
 	var err error
 	
-	if categoryType != "" {
+	// Handle different filtering options
+	if filter == "parent" {
+		// Get only parent categories (no parent_id)
+		categories, err = h.service.GetParentCategories(userID)
+	} else if filter == "children" && parentID != "" {
+		// Get children of specific parent
+		categories, err = h.service.GetChildCategories(userID, parentID)
+	} else if categoryType != "" {
+		// Filter by type
 		categories, err = h.service.GetCategoriesByType(userID, categoryType)
 	} else {
+		// Get all categories
 		categories, err = h.service.GetAllCategories(userID)
 	}
 
 	if err != nil {
-		response.InternalErrorResponse(c, err)
+		response.ErrorResponse(c, http.StatusBadRequest, "Failed to retrieve categories", err.Error())
 		return
 	}
 
 	response.SuccessResponse(c, http.StatusOK, "Categories retrieved successfully", categories)
+}
+
+// UpdateCategory handles PUT /categories/:id
+func (h *CategoryHandler) UpdateCategory(c *gin.Context) {
+	id := c.Param("id")
+
+	var req models.UpdateCategoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ValidationErrorResponse(c, err.Error())
+		return
+	}
+
+	userIDStr, _ := c.Get("user_id")
+	userID := userIDStr.(string)
+
+	category, err := h.service.UpdateCategory(id, userID, req)
+	if err != nil {
+		response.ErrorResponse(c, http.StatusBadRequest, "Failed to update category", err.Error())
+		return
+	}
+
+	response.SuccessResponse(c, http.StatusOK, "Category updated successfully", category)
 }
 
 // DeleteCategory handles DELETE /categories/:id
@@ -98,4 +131,20 @@ func (h *CategoryHandler) DeleteCategory(c *gin.Context) {
 	}
 
 	response.SuccessResponse(c, http.StatusOK, "Category deleted successfully", nil)
+}
+
+// CheckCategoryUsage handles GET /categories/:id/usage
+func (h *CategoryHandler) CheckCategoryUsage(c *gin.Context) {
+	id := c.Param("id")
+
+	userIDStr, _ := c.Get("user_id")
+	userID := userIDStr.(string)
+
+	usage, err := h.service.IsCategoryInUse(id, userID)
+	if err != nil {
+		response.ErrorResponse(c, http.StatusBadRequest, "Failed to check category usage", err.Error())
+		return
+	}
+
+	response.SuccessResponse(c, http.StatusOK, "Category usage retrieved successfully", usage)
 }

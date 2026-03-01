@@ -596,3 +596,20 @@ func (r *TransactionRepository) GetTotalsByAccountID(userID, accountID string) (
 	return income, expense, nil
 }
 
+// CountByCategoryID counts the number of transactions using a category
+func (r *TransactionRepository) CountByCategoryID(categoryID, userID string) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"user_id":     userID,
+		"category_id": categoryID,
+	}
+
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(count), nil
+}

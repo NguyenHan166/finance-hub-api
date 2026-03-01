@@ -15,6 +15,7 @@ type Router struct {
 	accountHandler     *AccountHandler
 	transactionHandler *TransactionHandler
 	categoryHandler    *CategoryHandler
+	budgetHandler      *BudgetHandler
 }
 
 // NewRouter creates a new router
@@ -25,6 +26,7 @@ func NewRouter(
 	accountHandler *AccountHandler,
 	transactionHandler *TransactionHandler,
 	categoryHandler *CategoryHandler,
+	budgetHandler *BudgetHandler,
 ) *Router {
 	return &Router{
 		cfg:                cfg,
@@ -33,6 +35,7 @@ func NewRouter(
 		accountHandler:     accountHandler,
 		transactionHandler: transactionHandler,
 		categoryHandler:    categoryHandler,
+		budgetHandler:      budgetHandler,
 	}
 }
 
@@ -123,9 +126,21 @@ func (r *Router) Setup() *gin.Engine {
 			categories := protected.Group("/categories")
 			{
 				categories.POST("", r.categoryHandler.CreateCategory)
-				categories.GET("", r.categoryHandler.GetAllCategories)
+				categories.GET("", r.categoryHandler.GetAllCategories) // Supports ?type=income/expense/both, ?filter=parent, ?parent_id=xxx&filter=children
 				categories.GET("/:id", r.categoryHandler.GetCategory)
+				categories.PUT("/:id", r.categoryHandler.UpdateCategory)
 				categories.DELETE("/:id", r.categoryHandler.DeleteCategory)
+				categories.GET("/:id/usage", r.categoryHandler.CheckCategoryUsage)
+			}
+
+			// Budget routes
+			budgets := protected.Group("/budgets")
+			{
+				budgets.POST("", r.budgetHandler.CreateOrUpdateBudget)    // Create or update budget (upsert)
+				budgets.GET("", r.budgetHandler.GetBudgetsByMonth)        // Get budgets by month (?month=YYYY-MM)
+				budgets.GET("/:id", r.budgetHandler.GetBudget)            // Get budget by ID
+				budgets.PUT("/:id", r.budgetHandler.UpdateBudget)         // Update budget
+				budgets.DELETE("/:id", r.budgetHandler.DeleteBudget)      // Delete budget
 			}
 		}
 	}

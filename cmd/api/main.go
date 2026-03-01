@@ -43,12 +43,14 @@ func main() {
 	accountRepo := repositories.NewAccountRepository(db.Database)
 	transactionRepo := repositories.NewTransactionRepository(db.Database)
 	categoryRepo := repositories.NewCategoryRepository(db.Database)
+	budgetRepo := repositories.NewBudgetRepository(db.Database)
 
 	// Initialize services
 	authService := services.NewAuthService(userRepo, tokenRepo, cfg)
 	accountService := services.NewAccountService(accountRepo)
 	transactionService := services.NewTransactionService(transactionRepo, accountRepo, categoryRepo)
-	categoryService := services.NewCategoryService(categoryRepo)
+	categoryService := services.NewCategoryService(categoryRepo, transactionRepo)
+	budgetService := services.NewBudgetService(budgetRepo, transactionRepo, categoryRepo)
 
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler()
@@ -56,6 +58,7 @@ func main() {
 	accountHandler := handlers.NewAccountHandler(accountService)
 	transactionHandler := handlers.NewTransactionHandler(transactionService)
 	categoryHandler := handlers.NewCategoryHandler(categoryService)
+	budgetHandler := handlers.NewBudgetHandler(budgetService)
 
 	// Setup router
 	router := handlers.NewRouter(
@@ -65,6 +68,7 @@ func main() {
 		accountHandler,
 		transactionHandler,
 		categoryHandler,
+		budgetHandler,
 	)
 
 	engine := router.Setup()

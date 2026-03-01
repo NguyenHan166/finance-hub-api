@@ -70,8 +70,9 @@ type Account struct {
 type Category struct {
 	ID        string    `json:"id" bson:"_id,omitempty"`
 	UserID    string    `json:"user_id" bson:"user_id"`
+	ParentID  *string   `json:"parent_id,omitempty" bson:"parent_id,omitempty"` // For hierarchical categories
 	Name      string    `json:"name" bson:"name" binding:"required"`
-	Type      string    `json:"type" bson:"type" binding:"required"` // income, expense
+	Type      string    `json:"type" bson:"type" binding:"required"` // income, expense, both
 	Icon      *string   `json:"icon,omitempty" bson:"icon,omitempty"`
 	Color     *string   `json:"color,omitempty" bson:"color,omitempty"`
 	IsDefault bool      `json:"is_default" bson:"is_default"`
@@ -100,16 +101,17 @@ type Transaction struct {
 
 // Budget represents a budget
 type Budget struct {
-	ID         string    `json:"id" bson:"_id,omitempty"`
-	UserID     string    `json:"user_id" bson:"user_id"`
-	CategoryID string    `json:"category_id" bson:"category_id" binding:"required"`
-	Amount     float64   `json:"amount" bson:"amount" binding:"required,gt=0"`
-	Period     string    `json:"period" bson:"period" binding:"required"` // monthly, yearly
-	StartDate  time.Time `json:"start_date" bson:"start_date" binding:"required"`
-	EndDate    time.Time `json:"end_date" bson:"end_date" binding:"required"`
-	IsActive   bool      `json:"is_active" bson:"is_active"`
-	CreatedAt  time.Time `json:"created_at" bson:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at" bson:"updated_at"`
+	ID             string    `json:"id" bson:"_id,omitempty"`
+	UserID         string    `json:"user_id" bson:"user_id"`
+	Month          string    `json:"month" bson:"month" binding:"required"` // YYYY-MM format
+	Scope          string    `json:"scope" bson:"scope" binding:"required,oneof=total category"`
+	CategoryID     *string   `json:"category_id,omitempty" bson:"category_id,omitempty"` // Optional, only for category scope
+	Limit          float64   `json:"limit" bson:"limit" binding:"required,gt=0"`
+	Spent          float64   `json:"spent" bson:"spent"` // Calculated from transactions
+	AlertEnabled   bool      `json:"alert_enabled" bson:"alert_enabled"`
+	AlertThreshold *int      `json:"alert_threshold,omitempty" bson:"alert_threshold,omitempty"` // Percentage 0-100
+	CreatedAt      time.Time `json:"created_at" bson:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at" bson:"updated_at"`
 }
 
 // DTOs (Data Transfer Objects)
@@ -267,19 +269,52 @@ type TransactionTypeStats struct {
 
 // CreateCategoryRequest represents request to create a category
 type CreateCategoryRequest struct {
-	Name  string  `json:"name" binding:"required"`
-	Type  string  `json:"type" binding:"required,oneof=income expense"`
-	Icon  *string `json:"icon,omitempty"`
-	Color *string `json:"color,omitempty"`
+	ParentID *string `json:"parent_id,omitempty"`
+	Name     string  `json:"name" binding:"required,min=1,max=100"`
+	Type     string  `json:"type" binding:"required,oneof=income expense both"`
+	Icon     *string `json:"icon,omitempty"`
+	Color    *string `json:"color,omitempty"`
 }
 
-// CreateBudgetRequest represents request to create a budget
+// UpdateCategoryRequest represents request to update a category
+type UpdateCategoryRequest struct {
+	ParentID *string `json:"parent_id,omitempty"`
+	Name     *string `json:"name,omitempty" binding:"omitempty,min=1,max=100"`
+	Type     *string `json:"type,omitempty" binding:"omitempty,oneof=income expense both"`
+	Icon     *string `json:"icon,omitempty"`
+	Color    *string `json:"color,omitempty"`
+}
+
+// CategoryUsageResponse represents category usage information
+type CategoryUsageResponse struct {
+	CategoryID     string `json:"category_id"`
+	IsInUse        bool   `json:"is_in_use"`
+	TransactionCount int  `json:"transaction_count"`
+	ChildCount      int   `json:"child_count"`
+}
+
+// CreateBudgetRequest represents request to create or update a budget
 type CreateBudgetRequest struct {
-	CategoryID string    `json:"category_id" binding:"required"`
-	Amount     float64   `json:"amount" binding:"required,gt=0"`
-	Period     string    `json:"period" binding:"required,oneof=monthly yearly"`
-	StartDate  time.Time `json:"start_date" binding:"required"`
-	EndDate    time.Time `json:"end_date" binding:"required"`
+	Month          string  `json:"month" binding:"required"` // YYYY-MM format
+	Scope          string  `json:"scope" binding:"required,oneof=total category"`
+	CategoryID     *string `json:"category_id,omitempty"`
+	Limit          float64 `json:"limit" binding:"required,gt=0"`
+	AlertEnabled   bool    `json:"alert_enabled"`
+	AlertThreshold *int    `json:"alert_threshold,omitempty" binding:"omitempty,min=0,max=100"`
+}
+
+// UpdateBudgetRequest represents request to update a budget
+type UpdateBudgetRequest struct {
+	Limit          *float64 `json:"limit,omitempty" binding:"omitempty,gt=0"`
+	AlertEnabled   *bool    `json:"alert_enabled,omitempty"`
+	AlertThreshold *int     `json:"alert_threshold,omitempty" binding:"omitempty,min=0,max=100"`
+}
+
+// BudgetWithCategory represents a budget with category details
+type BudgetWithCategory struct {
+	Budget
+	CategoryName *string `json:"category_name,omitempty"`
+	CategoryIcon *string `json:"category_icon,omitempty"`
 }
 
 // PaginationQuery represents pagination parameters
