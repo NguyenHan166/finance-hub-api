@@ -28,20 +28,47 @@ func (r *AccountRepository) Create(userID string, req models.CreateAccountReques
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	account := &models.Account{
-		ID:        uuid.New().String(),
-		UserID:    userID,
-		Name:      req.Name,
-		Type:      req.Type,
-		Balance:   req.Balance,
-		Currency:  req.Currency,
-		BankName:  req.BankName,
-		IsActive:  true,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	// Get max display order
+	maxOrder := 0
+	filter := bson.M{"user_id": userID}
+	opts := options.FindOne().SetSort(bson.D{{Key: "display_order", Value: -1}})
+	var lastAccount models.Account
+	err := r.collection.FindOne(ctx, filter, opts).Decode(&lastAccount)
+	if err == nil {
+		maxOrder = lastAccount.DisplayOrder
 	}
 
-	_, err := r.collection.InsertOne(ctx, account)
+	// Set display order
+	displayOrder := maxOrder + 1
+	if req.DisplayOrder != nil {
+		displayOrder = *req.DisplayOrder
+	}
+
+	account := &models.Account{
+		ID:                  uuid.New().String(),
+		UserID:              userID,
+		Name:                req.Name,
+		Type:                req.Type,
+		Balance:             req.Balance,
+		Currency:            req.Currency,
+		Icon:                req.Icon,
+		Color:               req.Color,
+		BankBIN:             req.BankBIN,
+		BankCode:            req.BankCode,
+		BankName:            req.BankName,
+		AccountNumber:       req.AccountNumber,
+		CardNumber:          req.CardNumber,
+		CreditLimit:         req.CreditLimit,
+		StatementDate:       req.StatementDate,
+		DueDate:             req.DueDate,
+		IsActive:            true,
+		IsExcludedFromTotal: req.IsExcludedFromTotal,
+		DisplayOrder:        displayOrder,
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
+	}
+
+	_, err = r.collection.InsertOne(ctx, account)
 	if err != nil {
 		return nil, err
 	}
@@ -124,11 +151,44 @@ func (r *AccountRepository) Update(id, userID string, req models.UpdateAccountRe
 	if req.Balance != nil {
 		update["$set"].(bson.M)["balance"] = *req.Balance
 	}
+	if req.Icon != nil {
+		update["$set"].(bson.M)["icon"] = *req.Icon
+	}
+	if req.Color != nil {
+		update["$set"].(bson.M)["color"] = *req.Color
+	}
+	if req.BankBIN != nil {
+		update["$set"].(bson.M)["bank_bin"] = *req.BankBIN
+	}
+	if req.BankCode != nil {
+		update["$set"].(bson.M)["bank_code"] = *req.BankCode
+	}
 	if req.BankName != nil {
 		update["$set"].(bson.M)["bank_name"] = *req.BankName
 	}
+	if req.AccountNumber != nil {
+		update["$set"].(bson.M)["account_number"] = *req.AccountNumber
+	}
+	if req.CardNumber != nil {
+		update["$set"].(bson.M)["card_number"] = *req.CardNumber
+	}
+	if req.CreditLimit != nil {
+		update["$set"].(bson.M)["credit_limit"] = *req.CreditLimit
+	}
+	if req.StatementDate != nil {
+		update["$set"].(bson.M)["statement_date"] = *req.StatementDate
+	}
+	if req.DueDate != nil {
+		update["$set"].(bson.M)["due_date"] = *req.DueDate
+	}
 	if req.IsActive != nil {
 		update["$set"].(bson.M)["is_active"] = *req.IsActive
+	}
+	if req.IsExcludedFromTotal != nil {
+		update["$set"].(bson.M)["is_excluded_from_total"] = *req.IsExcludedFromTotal
+	}
+	if req.DisplayOrder != nil {
+		update["$set"].(bson.M)["display_order"] = *req.DisplayOrder
 	}
 
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
@@ -143,6 +203,85 @@ func (r *AccountRepository) Update(id, userID string, req models.UpdateAccountRe
 	}
 
 	return &account, nil
+}
+
+// GetTotalBalance calculates total balance across all active accounts
+func (r *AccountRepository) GetTotalBalance(userID string) (float64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"user_id":                userID,
+		"is_active":              true,
+		"is_excluded_from_total": false,
+	}
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {
+		return 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var total float64
+	for cursor.Next(ctx) {
+		var account models.Account
+		if err := cursor.Decode(&account); err != nil {
+			continue
+		}
+		total += account.Balance
+	}
+
+	return total, nil
+}
+
+// GetSummary returns account summary statistics
+func (r *AccountRepository) GetSummary(userID string) (*models.AccountSummary, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"user_id": userID, "is_active": true}
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	summary := &models.AccountSummary{
+		AccountsByType: make(map[string]int),
+	}
+
+	var totalBalance float64
+	var accountCount int
+
+	for cursor.Next(ctx) {
+		var account models.Account
+		if err := cursor.Decode(&account); err != nil {
+			continue
+		}
+
+		accountCount++
+		summary.AccountsByType[account.Type]++
+
+		if !account.IsExcludedFromTotal {
+			totalBalance += account.Balance
+		}
+	}
+
+	summary.TotalAccounts = accountCount
+	summary.TotalBalance = totalBalance
+	summary.NetWorth = totalBalance
+
+	return summary, nil
+}
+
+// CountByUser counts accounts for a user
+func (r *AccountRepository) CountByUser(userID string) (int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"user_id": userID, "is_active": true}
+	return r.collection.CountDocuments(ctx, filter)
 }
 
 // Delete deletes an account

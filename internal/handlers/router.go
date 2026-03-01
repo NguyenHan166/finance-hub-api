@@ -93,6 +93,8 @@ func (r *Router) Setup() *gin.Engine {
 			// Account routes
 			accounts := protected.Group("/accounts")
 			{
+				accounts.GET("/summary", r.accountHandler.GetAccountSummary) // Must be before /:id
+				accounts.GET("/banks", r.accountHandler.GetBanks)            // Must be before /:id
 				accounts.POST("", r.accountHandler.CreateAccount)
 				accounts.GET("", r.accountHandler.GetAllAccounts)
 				accounts.GET("/:id", r.accountHandler.GetAccount)
@@ -103,9 +105,17 @@ func (r *Router) Setup() *gin.Engine {
 			// Transaction routes
 			transactions := protected.Group("/transactions")
 			{
+				// Special routes first (before /:id to avoid conflicts)
+				transactions.GET("/recent", r.transactionHandler.GetRecentTransactions)
+				transactions.GET("/summary", r.transactionHandler.GetTransactionSummary)
+				transactions.PUT("/bulk/category", r.transactionHandler.BulkUpdateCategory)
+				transactions.DELETE("/bulk", r.transactionHandler.BulkDelete)
+				
+				// Standard CRUD routes
 				transactions.POST("", r.transactionHandler.CreateTransaction)
 				transactions.GET("", r.transactionHandler.GetAllTransactions)
 				transactions.GET("/:id", r.transactionHandler.GetTransaction)
+				transactions.PUT("/:id", r.transactionHandler.UpdateTransaction)
 				transactions.DELETE("/:id", r.transactionHandler.DeleteTransaction)
 			}
 

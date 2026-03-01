@@ -47,7 +47,7 @@ func main() {
 	// Initialize services
 	authService := services.NewAuthService(userRepo, tokenRepo, cfg)
 	accountService := services.NewAccountService(accountRepo)
-	transactionService := services.NewTransactionService(transactionRepo, accountRepo)
+	transactionService := services.NewTransactionService(transactionRepo, accountRepo, categoryRepo)
 	categoryService := services.NewCategoryService(categoryRepo)
 
 	// Initialize handlers

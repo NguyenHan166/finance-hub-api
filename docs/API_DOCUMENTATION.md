@@ -652,14 +652,12 @@ Các API endpoints khác có moderate rate limiting (60 requests/phút).
 
 **GET** `/accounts`
 
-Lấy danh sách tất cả tài khoản của user.
+Lấy danh sách tất cả tài khoản của user, sorted theo `display_order` và `created_at`.
 
 **Query Parameters:**
 
 - `page` (integer, optional): Page number, default = 1
-- `limit` (integer, optional): Items per page, default = 10
-- `sort_by` (string, optional): Field to sort by (name, balance, created_at), default = created_at
-- `order` (string, optional): Sort order (asc, desc), default = desc
+- `limit` (integer, optional): Items per page, default = 10, max = 100
 
 **Response 200:**
 
@@ -680,44 +678,178 @@ Lấy danh sách tất cả tài khoản của user.
                 "color": "#10B981",
                 "bank_bin": null,
                 "bank_code": null,
+                "bank_name": null,
                 "bank_logo": null,
                 "account_number": null,
                 "card_number": null,
+                "credit_limit": null,
+                "statement_date": null,
+                "due_date": null,
+                "is_active": true,
+                "is_excluded_from_total": false,
+                "display_order": 1,
                 "created_at": "2026-01-15T10:30:00Z",
                 "updated_at": "2026-01-15T10:30:00Z"
+            },
+            {
+                "id": "uuid-string-2",
+                "user_id": "uuid-string",
+                "name": "Techcombank - Lương",
+                "type": "bank",
+                "currency": "VND",
+                "balance": 25000000,
+                "icon": "🏦",
+                "color": "#3B82F6",
+                "bank_bin": "970407",
+                "bank_code": "TCB",
+                "bank_name": "Ngân hàng TMCP Kỹ thương Việt Nam",
+                "bank_logo": "https://api.vietqr.io/img/TCB.png",
+                "account_number": "19036587456",
+                "card_number": null,
+                "credit_limit": null,
+                "statement_date": null,
+                "due_date": null,
+                "is_active": true,
+                "is_excluded_from_total": false,
+                "display_order": 2,
+                "created_at": "2026-01-16T09:20:00Z",
+                "updated_at": "2026-02-20T15:45:00Z"
+            },
+            {
+                "id": "uuid-string-3",
+                "user_id": "uuid-string",
+                "name": "Techcombank Visa Credit",
+                "type": "credit",
+                "currency": "VND",
+                "balance": -2500000,
+                "icon": "💳",
+                "color": "#F59E0B",
+                "bank_bin": "970407",
+                "bank_code": "TCB",
+                "bank_name": "Ngân hàng TMCP Kỹ thương Việt Nam",
+                "bank_logo": "https://api.vietqr.io/img/TCB.png",
+                "account_number": null,
+                "card_number": "**** **** **** 1234",
+                "credit_limit": 50000000,
+                "statement_date": 15,
+                "due_date": 5,
+                "is_active": true,
+                "is_excluded_from_total": false,
+                "display_order": 3,
+                "created_at": "2026-01-20T14:00:00Z",
+                "updated_at": "2026-02-27T10:15:00Z"
             }
         ],
         "page": 1,
         "limit": 10,
-        "total_items": 5,
+        "total_items": 3,
         "total_pages": 1
     }
 }
 ```
 
+**Account Types:**
+
+- `cash`: Tiền mặt, ví
+- `bank`: Tài khoản ngân hàng
+- `credit`: Thẻ tín dụng
+
+---
+
 ### 1.2 Get Account Summary
 
 **GET** `/accounts/summary`
 
-Lấy tổng quan tất cả tài khoản (total balance, net worth change).
+Lấy tổng quan tất cả tài khoản, including total balance, net worth, và thống kê theo loại.
 
 **Response 200:**
 
 ```json
 {
     "status": "success",
+    "message": "Account summary retrieved successfully",
     "data": {
+        "total_accounts": 5,
         "total_balance": 42500000,
-        "accounts": [
-            /* array of accounts */
-        ],
-        "net_worth_change": 2350000,
-        "net_worth_change_percent": 5.8
+        "total_income": 0,
+        "total_expense": 0,
+        "net_worth": 42500000,
+        "accounts_by_type": {
+            "cash": 2,
+            "bank": 2,
+            "credit": 1
+        }
     }
 }
 ```
 
-### 1.3 Get Account by ID
+**Notes:**
+
+- `total_balance`: Tổng số dư của tất cả accounts đang active và không bị exclude
+- `net_worth`: = `total_balance` (có thể khác nếu có investments)
+- `accounts_by_type`: Số lượng accounts theo từng loại
+
+---
+
+### 1.3 Get Bank List (VietQR)
+
+**GET** `/accounts/banks`
+
+Lấy danh sách ngân hàng Việt Nam từ VietQR API để auto-fill khi tạo bank account.
+
+**Query Parameters:**
+
+- `q` (string, optional): Search query (tìm theo tên hoặc code)
+
+**Response 200:**
+
+```json
+{
+    "status": "success",
+    "message": "Banks retrieved successfully",
+    "data": [
+        {
+            "id": 17,
+            "name": "Ngân hàng TMCP Công Thương Việt Nam",
+            "code": "VCB",
+            "bin": "970436",
+            "shortName": "Vietcombank",
+            "logo": "https://api.vietqr.io/img/VCB.png",
+            "transferSupported": 1,
+            "lookupSupported": 1
+        },
+        {
+            "id": 43,
+            "name": "Ngân hàng TMCP Kỹ thương Việt Nam",
+            "code": "TCB",
+            "bin": "970407",
+            "shortName": "Techcombank",
+            "logo": "https://api.vietqr.io/img/TCB.png",
+            "transferSupported": 1,
+            "lookupSupported": 1
+        }
+    ]
+}
+```
+
+**Example - Search Banks:**
+
+```bash
+GET /api/v1/accounts/banks?q=vietcombank
+```
+
+**Usage:**
+
+Khi user chọn bank từ dropdown, frontend có thể auto-fill:
+
+- `bank_code`: từ `code`
+- `bank_bin`: từ `bin`
+- `bank_name`: từ `name`
+- `bank_logo`: từ `logo`
+
+---
+
+### 1.4 Get Account by ID
 
 **GET** `/accounts/:id`
 
@@ -728,16 +860,28 @@ Lấy chi tiết một tài khoản.
 ```json
 {
     "status": "success",
+    "message": "Account retrieved successfully",
     "data": {
         "id": "uuid",
         "user_id": "uuid",
-        "name": "Techcombank",
+        "name": "Techcombank - Lương",
         "type": "bank",
         "currency": "VND",
         "balance": 25000000,
+        "icon": "🏦",
+        "color": "#3B82F6",
+        "bank_bin": "970407",
         "bank_code": "TCB",
+        "bank_name": "Ngân hàng TMCP Kỹ thương Việt Nam",
         "bank_logo": "https://api.vietqr.io/img/TCB.png",
         "account_number": "19036587456",
+        "card_number": null,
+        "credit_limit": null,
+        "statement_date": null,
+        "due_date": null,
+        "is_active": true,
+        "is_excluded_from_total": false,
+        "display_order": 2,
         "created_at": "2026-01-15T10:30:00Z",
         "updated_at": "2026-02-20T15:45:00Z"
     }
@@ -753,25 +897,57 @@ Lấy chi tiết một tài khoản.
 }
 ```
 
-### 1.4 Create Account
+---
+
+### 1.5 Create Account
 
 **POST** `/accounts`
 
-Tạo tài khoản mới.
+Tạo tài khoản mới. Backend tự động fetch bank info từ VietQR nếu `bank_code` được cung cấp.
 
-**Request Body:**
+**Request Body - Cash Account:**
 
 ```json
 {
-    "name": "Vietcombank",
+    "name": "Ví tiền mặt",
+    "type": "cash",
+    "balance": 5000000,
+    "currency": "VND",
+    "icon": "💵",
+    "color": "#10B981"
+}
+```
+
+**Request Body - Bank Account:**
+
+```json
+{
+    "name": "Vietcombank - Lương",
     "type": "bank",
     "balance": 10000000,
-    "icon": "🏦",
-    "color": "#3B82F6",
-    "bank_bin": "970436",
+    "currency": "VND",
     "bank_code": "VCB",
-    "bank_logo": "https://api.vietqr.io/img/VCB.png",
-    "account_number": "1234567890"
+    "account_number": "1234567890",
+    "icon": "🏦",
+    "color": "#3B82F6"
+}
+```
+
+**Request Body - Credit Card:**
+
+```json
+{
+    "name": "Techcombank Visa",
+    "type": "credit",
+    "balance": 0,
+    "currency": "VND",
+    "bank_code": "TCB",
+    "card_number": "**** **** **** 1234",
+    "credit_limit": 50000000,
+    "statement_date": 15,
+    "due_date": 5,
+    "icon": "💳",
+    "color": "#F59E0B"
 }
 ```
 
@@ -779,12 +955,30 @@ Tạo tài khoản mới.
 
 - `name` (required, string, 1-100 chars)
 - `type` (required, enum: "cash", "bank", "credit")
-- `balance` (required, number >= 0)
-- `icon` (optional, string)
-- `color` (optional, string, hex color)
-- `bank_code` (optional, string, for bank accounts)
-- `account_number` (optional, string, for bank accounts)
-- `card_number` (optional, string, for credit accounts)
+- `balance` (optional, number, default = 0)
+- `currency` (required, string, default = "VND")
+- `icon` (optional, string, default based on type)
+- `color` (optional, string, hex color, default based on type)
+
+**Bank-specific:**
+
+- `bank_code` (optional, string): Nếu cung cấp, backend auto-fetch bank info
+- `bank_bin` (optional, string): Auto-filled if `bank_code` provided
+- `bank_name` (optional, string): Auto-filled if `bank_code` provided
+- `bank_logo` (optional, string): Auto-filled if `bank_code` provided
+- `account_number` (optional, string)
+
+**Credit card-specific:**
+
+- `card_number` (optional, string): Masked card number
+- `credit_limit` (required for credit type, number > 0)
+- `statement_date` (optional, integer, 1-31): Ngày đóng sổ
+- `due_date` (optional, integer, 1-31): Ngày đáo hạn
+
+**Other:**
+
+- `is_excluded_from_total` (optional, boolean, default = false): Exclude from net worth calculation
+- `display_order` (optional, integer): Display order in UI
 
 **Response 201:**
 
@@ -793,24 +987,80 @@ Tạo tài khoản mới.
     "status": "success",
     "message": "Account created successfully",
     "data": {
-        /* created account object */
+        "id": "uuid-generated",
+        "user_id": "uuid",
+        "name": "Vietcombank - Lương",
+        "type": "bank",
+        "balance": 10000000,
+        "currency": "VND",
+        "icon": "🏦",
+        "color": "#3B82F6",
+        "bank_bin": "970436",
+        "bank_code": "VCB",
+        "bank_name": "Ngân hàng TMCP Công Thương Việt Nam",
+        "bank_logo": "https://api.vietqr.io/img/VCB.png",
+        "account_number": "1234567890",
+        "is_active": true,
+        "is_excluded_from_total": false,
+        "display_order": 1,
+        "created_at": "2026-02-28T10:00:00Z",
+        "updated_at": "2026-02-28T10:00:00Z"
     }
 }
 ```
 
-### 1.5 Update Account
-
-**PUT** `/accounts/:id`
-
-Cập nhật thông tin tài khoản (không cập nhật balance trực tiếp).
-
-**Request Body:** (all fields optional)
+**Response 400:**
 
 ```json
 {
-    "name": "VCB - Lương",
+    "status": "error",
+    "message": "Failed to create account",
+    "error": "Invalid account type: must be cash, bank, or credit"
+}
+```
+
+**Response 400 (Credit without limit):**
+
+```json
+{
+    "status": "error",
+    "message": "Failed to create account",
+    "error": "credit limit is required for credit card accounts"
+}
+```
+
+---
+
+### 1.6 Update Account
+
+**PUT** `/accounts/:id`
+
+Cập nhật thông tin tài khoản. **Lưu ý:** Không cập nhật balance trực tiếp (balance chỉ thay đổi qua transactions).
+
+**Request Body:** (tất cả fields đều optional)
+
+```json
+{
+    "name": "VCB - Lương chính",
     "icon": "💰",
-    "color": "#EF4444"
+    "color": "#EF4444",
+    "bank_code": "VCB",
+    "account_number": "9876543210",
+    "is_active": true,
+    "is_excluded_from_total": false,
+    "display_order": 1
+}
+```
+
+**For Credit Cards:**
+
+```json
+{
+    "name": "TCB Visa Platinum",
+    "credit_limit": 100000000,
+    "statement_date": 20,
+    "due_date": 10,
+    "card_number": "**** **** **** 5678"
 }
 ```
 
@@ -821,12 +1071,29 @@ Cập nhật thông tin tài khoản (không cập nhật balance trực tiếp)
     "status": "success",
     "message": "Account updated successfully",
     "data": {
-        /* updated account */
+        /* updated account object */
     }
 }
 ```
 
-### 1.6 Delete Account
+**Response 404:**
+
+```json
+{
+    "status": "error",
+    "message": "Failed to update account",
+    "error": "account not found"
+}
+```
+
+**Notes:**
+
+- Nếu update `bank_code`, backend sẽ auto-fetch bank info mới từ VietQR
+- Changing `balance` directly ở đây không được recommend, nên tạo transaction adjust
+
+---
+
+### 1.7 Delete Account
 
 **DELETE** `/accounts/:id`
 
@@ -837,7 +1104,8 @@ Xóa tài khoản. Chỉ xóa được nếu không có transaction nào liên q
 ```json
 {
     "status": "success",
-    "message": "Account deleted successfully"
+    "message": "Account deleted successfully",
+    "data": null
 }
 ```
 
@@ -846,9 +1114,25 @@ Xóa tài khoản. Chỉ xóa được nếu không có transaction nào liên q
 ```json
 {
     "status": "error",
-    "message": "Cannot delete account with existing transactions"
+    "message": "Failed to delete account",
+    "error": "Cannot delete account with existing transactions"
 }
 ```
+
+**Response 404:**
+
+```json
+{
+    "status": "error",
+    "message": "Failed to delete account",
+    "error": "account not found"
+}
+```
+
+**Notes:**
+
+- Để xóa account có transactions, user phải xóa tất cả transactions trước
+- Hoặc implement "Archive" feature thay vì delete (set `is_active` = false)
 
 ---
 
@@ -858,25 +1142,31 @@ Xóa tài khoản. Chỉ xóa được nếu không có transaction nào liên q
 
 **GET** `/transactions`
 
-Lấy danh sách giao dịch với filters.
+Lấy danh sách giao dịch với filters và pagination.
 
 **Query Parameters:**
 
-- `page` (integer): Page number
-- `limit` (integer): Items per page
-- `month` (string): Filter by month YYYY-MM
-- `account_id` (string): Filter by account
-- `category_id` (string): Filter by category
+- `page` (integer): Page number (default: 1)
+- `limit` (integer): Items per page (default: 10, max: 100)
+- `account_id` (string): Filter by account ID (includes both source and destination for transfers)
+- `category_id` (string): Filter by category ID
 - `type` (string): Filter by type (income, expense, transfer)
-- `search` (string): Search in merchant, note, tags
-- `start_date` (string): Start date ISO 8601
-- `end_date` (string): End date ISO 8601
+- `search` (string): Search in merchant, description, notes
+- `start_date` (string): Start date YYYY-MM-DD
+- `end_date` (string): End date YYYY-MM-DD
+- `month` (string): Filter by month YYYY-MM (alternative to start_date/end_date)
+- `min_amount` (string): Minimum amount filter
+- `max_amount` (string): Maximum amount filter
+- `tags` (string): Comma-separated tags to filter by
+- `sort_by` (string): Sort field (date, amount) - default: date
+- `sort_order` (string): Sort order (asc, desc) - default: desc
 
 **Response 200:**
 
 ```json
 {
     "status": "success",
+    "message": "Transactions retrieved successfully",
     "data": {
         "data": [
             {
@@ -884,12 +1174,13 @@ Lấy danh sách giao dịch với filters.
                 "user_id": "uuid",
                 "type": "expense",
                 "amount": 150000,
-                "date_time_iso": "2026-01-20T12:30:00Z",
+                "transaction_date": "2026-01-20T12:30:00Z",
                 "account_id": "uuid",
                 "to_account_id": null,
                 "category_id": "uuid",
                 "merchant": "Highlands Coffee",
-                "note": "Họp team",
+                "description": "Coffee meeting",
+                "notes": "Họp team",
                 "tags": ["work", "food"],
                 "attachment_url": null,
                 "created_at": "2026-01-20T12:35:00Z",
@@ -908,16 +1199,43 @@ Lấy danh sách giao dịch với filters.
 
 **GET** `/transactions/:id`
 
-Lấy chi tiết giao dịch.
+Lấy chi tiết một giao dịch cụ thể.
+
+**Path Parameters:**
+
+- `id` (string, required): Transaction ID
 
 **Response 200:**
 
 ```json
 {
     "status": "success",
+    "message": "Transaction retrieved successfully",
     "data": {
-        /* transaction object */
+        "id": "uuid",
+        "user_id": "uuid",
+        "type": "expense",
+        "amount": 150000,
+        "transaction_date": "2026-01-20T12:30:00Z",
+        "account_id": "uuid",
+        "category_id": "uuid",
+        "merchant": "Highlands Coffee",
+        "description": "Coffee meeting",
+        "notes": "Họp team",
+        "tags": ["work", "food"],
+        "attachment_url": null,
+        "created_at": "2026-01-20T12:35:00Z",
+        "updated_at": "2026-01-20T12:35:00Z"
     }
+}
+```
+
+**Response 404:**
+
+```json
+{
+    "status": "error",
+    "message": "Transaction not found"
 }
 ```
 
@@ -927,32 +1245,34 @@ Lấy chi tiết giao dịch.
 
 Tạo giao dịch mới. Tự động cập nhật balance của account(s).
 
-**Request Body:**
+**Request Body (Income/Expense):**
 
 ```json
 {
     "type": "expense",
     "amount": 500000,
-    "date_time_iso": "2026-02-27T14:30:00Z",
+    "transaction_date": "2026-02-27T14:30:00Z",
     "account_id": "uuid",
     "category_id": "uuid",
     "merchant": "Shopee",
-    "note": "Mua quần áo",
+    "description": "Online shopping",
+    "notes": "Mua quần áo",
     "tags": ["shopping", "clothes"],
     "attachment_url": "https://storage.example.com/receipts/abc.jpg"
 }
 ```
 
-**For Transfer Transaction:**
+**Request Body (Transfer):**
 
 ```json
 {
     "type": "transfer",
     "amount": 1000000,
-    "date_time_iso": "2026-02-27T10:00:00Z",
+    "transaction_date": "2026-02-27T10:00:00Z",
     "account_id": "uuid-from",
     "to_account_id": "uuid-to",
-    "note": "Chuyển tiền tiết kiệm"
+    "description": "Chuyển tiền tiết kiệm",
+    "notes": "Monthly savings"
 }
 ```
 
@@ -960,22 +1280,24 @@ Tạo giao dịch mới. Tự động cập nhật balance của account(s).
 
 - `type` (required, enum: "income", "expense", "transfer")
 - `amount` (required, number > 0)
-- `date_time_iso` (required, ISO 8601 datetime)
+- `transaction_date` (required, ISO 8601 datetime)
 - `account_id` (required, valid account UUID)
 - `to_account_id` (required if type=transfer, valid account UUID)
-- `category_id` (optional, valid category UUID)
-- `merchant` (optional, string, max 200 chars)
-- `note` (optional, string, max 500 chars)
+- `category_id` (required for income/expense, optional for transfer)
+- `merchant` (optional, string)
+- `description` (optional, string)
+- `notes` (optional, string)
 - `tags` (optional, array of strings)
 - `attachment_url` (optional, string, valid URL)
 
 **Business Logic:**
 
-- For **expense**: decrease account balance
-- For **income**: increase account balance
-- For **transfer**: decrease from_account, increase to_account
-- Validate sufficient balance for expense/transfer
-- Category is optional for transfer transactions
+- For **expense**: decrease account balance, requires category
+- For **income**: increase account balance, requires category
+- For **transfer**: decrease from_account, increase to_account, category is optional
+- Validates sufficient balance for expense/transfer
+- Validates category type matches transaction type (for income/expense)
+- Cannot transfer to the same account
 
 **Response 201:**
 
@@ -984,7 +1306,20 @@ Tạo giao dịch mới. Tự động cập nhật balance của account(s).
     "status": "success",
     "message": "Transaction created successfully",
     "data": {
-        /* created transaction */
+        "id": "new-uuid",
+        "user_id": "uuid",
+        "type": "expense",
+        "amount": 500000,
+        "transaction_date": "2026-02-27T14:30:00Z",
+        "account_id": "uuid",
+        "category_id": "uuid",
+        "merchant": "Shopee",
+        "description": "Online shopping",
+        "notes": "Mua quần áo",
+        "tags": ["shopping", "clothes"],
+        "attachment_url": "https://storage.example.com/receipts/abc.jpg",
+        "created_at": "2026-02-27T14:30:05Z",
+        "updated_at": "2026-02-27T14:30:05Z"
     }
 }
 ```
@@ -994,7 +1329,8 @@ Tạo giao dịch mới. Tự động cập nhật balance của account(s).
 ```json
 {
     "status": "error",
-    "message": "Insufficient balance"
+    "message": "Failed to create transaction",
+    "error": "insufficient balance in account Tiền mặt"
 }
 ```
 
@@ -1002,17 +1338,35 @@ Tạo giao dịch mới. Tự động cập nhật balance của account(s).
 
 **PUT** `/transactions/:id`
 
-Cập nhật giao dịch. Sẽ revert balance changes của transaction cũ và apply lại với data mới.
+Cập nhật giao dịch. Tự động revert balance changes của transaction cũ và apply lại với data mới.
 
-**Request Body:** (all fields optional except type)
+**Path Parameters:**
+
+- `id` (string, required): Transaction ID
+
+**Request Body:** (all fields optional)
 
 ```json
 {
+    "type": "expense",
     "amount": 600000,
+    "transaction_date": "2026-02-27T15:00:00Z",
+    "account_id": "uuid",
+    "category_id": "uuid",
     "merchant": "Shopee (updated)",
-    "note": "Mua quần áo + phụ kiện"
+    "description": "Updated description",
+    "notes": "Mua quần áo + phụ kiện",
+    "tags": ["shopping", "clothes", "accessories"],
+    "attachment_url": "https://storage.example.com/receipts/updated.jpg"
 }
 ```
+
+**Business Logic:**
+
+- Reverts the old transaction's balance changes
+- Applies new balance changes based on updated data
+- If update fails, attempts to restore old balance
+- Validates all business rules as in Create Transaction
 
 **Response 200:**
 
@@ -1021,8 +1375,40 @@ Cập nhật giao dịch. Sẽ revert balance changes của transaction cũ và 
     "status": "success",
     "message": "Transaction updated successfully",
     "data": {
-        /* updated transaction */
+        "id": "uuid",
+        "user_id": "uuid",
+        "type": "expense",
+        "amount": 600000,
+        "transaction_date": "2026-02-27T15:00:00Z",
+        "account_id": "uuid",
+        "category_id": "uuid",
+        "merchant": "Shopee (updated)",
+        "description": "Updated description",
+        "notes": "Mua quần áo + phụ kiện",
+        "tags": ["shopping", "clothes", "accessories"],
+        "attachment_url": "https://storage.example.com/receipts/updated.jpg",
+        "created_at": "2026-02-27T14:30:05Z",
+        "updated_at": "2026-02-27T15:05:12Z"
     }
+}
+```
+
+**Response 400:**
+
+```json
+{
+    "status": "error",
+    "message": "Failed to update transaction",
+    "error": "account not found"
+}
+```
+
+**Response 404:**
+
+```json
+{
+    "status": "error",
+    "message": "Transaction not found"
 }
 ```
 
@@ -1030,7 +1416,16 @@ Cập nhật giao dịch. Sẽ revert balance changes của transaction cũ và 
 
 **DELETE** `/transactions/:id`
 
-Xóa giao dịch và revert balance changes.
+Xóa giao dịch và tự động revert balance changes.
+
+**Path Parameters:**
+
+- `id` (string, required): Transaction ID
+
+**Business Logic:**
+
+- Reverts balance changes (adds back for expense, subtracts for income, etc.)
+- Permanently deletes the transaction record
 
 **Response 200:**
 
@@ -1038,34 +1433,198 @@ Xóa giao dịch và revert balance changes.
 {
     "status": "success",
     "message": "Transaction deleted successfully",
-    "data": {
-        /* deleted transaction object */
-    }
+    "data": null
 }
 ```
 
-### 2.6 Bulk Delete Transactions
+**Response 400:**
 
-**POST** `/transactions/bulk-delete`
+```json
+{
+    "status": "error",
+    "message": "Failed to delete transaction",
+    "error": "failed to revert account balance: account not found"
+}
+```
 
-Xóa nhiều transactions cùng lúc.
+**Response 404:**
+
+```json
+{
+    "status": "error",
+    "message": "Transaction not found"
+}
+```
+
+### 2.6 Bulk Update Category
+
+**PUT** `/transactions/bulk/category`
+
+Cập nhật category cho nhiều transactions cùng lúc. Chỉ áp dụng cho income/expense transactions (không áp dụng cho transfers).
 
 **Request Body:**
 
 ```json
 {
-    "ids": ["uuid1", "uuid2", "uuid3"]
+    "transaction_ids": ["uuid1", "uuid2", "uuid3"],
+    "category_id": "new-category-uuid"
 }
 ```
+
+**Validation Rules:**
+
+- `transaction_ids` (required, array, min 1 item)
+- `category_id` (required, valid category UUID)
+
+**Business Logic:**
+
+- Only updates non-transfer transactions
+- Validates category exists and belongs to user
+- Skips transactions that don't belong to the user
 
 **Response 200:**
 
 ```json
 {
     "status": "success",
-    "message": "3 transactions deleted successfully",
+    "message": "Categories updated successfully",
+    "data": {
+        "updated_count": 3
+    }
+}
+```
+
+**Response 400:**
+
+```json
+{
+    "status": "error",
+    "message": "Failed to update categories",
+    "error": "category not found"
+}
+```
+
+### 2.7 Bulk Delete
+
+**DELETE** `/transactions/bulk`
+
+Xóa nhiều transactions cùng lúc và revert tất cả balance changes.
+
+**Request Body:**
+
+```json
+{
+    "transaction_ids": ["uuid1", "uuid2", "uuid3"]
+}
+```
+
+**Validation Rules:**
+
+- `transaction_ids` (required, array, min 1 item)
+
+**Business Logic:**
+
+- Reverts balance changes for each transaction
+- Deletes all specified transactions
+- If any balance revert fails, logs warning but continues
+- If delete operation fails, attempts to restore all balances
+
+**Response 200:**
+
+```json
+{
+    "status": "success",
+    "message": "Transactions deleted successfully",
     "data": {
         "deleted_count": 3
+    }
+}
+```
+
+**Response 400:**
+
+```json
+{
+    "status": "error",
+    "message": "Failed to delete transactions",
+    "error": "database error"
+}
+```
+
+### 2.8 Get Recent Transactions
+
+**GET** `/transactions/recent`
+
+Lấy danh sách transactions gần đây nhất.
+
+**Query Parameters:**
+
+- `limit` (integer, optional): Number of transactions to return (default: 5, max: 50)
+
+**Response 200:**
+
+```json
+{
+    "status": "success",
+    "message": "Recent transactions retrieved successfully",
+    "data": [
+        {
+            "id": "uuid",
+            "user_id": "uuid",
+            "type": "expense",
+            "amount": 150000,
+            "transaction_date": "2026-02-27T12:30:00Z",
+            "account_id": "uuid",
+            "category_id": "uuid",
+            "merchant": "Highlands Coffee",
+            "description": "Coffee meeting",
+            "notes": "Họp team",
+            "tags": ["work", "food"],
+            "attachment_url": null,
+            "created_at": "2026-02-27T12:35:00Z",
+            "updated_at": "2026-02-27T12:35:00Z"
+        }
+    ]
+}
+```
+
+### 2.9 Get Transaction Summary
+
+**GET** `/transactions/summary`
+
+Lấy thống kê tổng hợp về transactions.
+
+**Query Parameters:**
+
+- `start_date` (string, optional): Start date YYYY-MM-DD
+- `end_date` (string, optional): End date YYYY-MM-DD
+- `month` (string, optional): Filter by month YYYY-MM
+
+**Response 200:**
+
+```json
+{
+    "status": "success",
+    "message": "Transaction summary retrieved successfully",
+    "data": {
+        "total_transactions": 45,
+        "total_income": 15000000,
+        "total_expense": 8500000,
+        "net_amount": 6500000,
+        "by_type": {
+            "income": {
+                "count": 5,
+                "amount": 15000000
+            },
+            "expense": {
+                "count": 38,
+                "amount": 8500000
+            },
+            "transfer": {
+                "count": 2,
+                "amount": 2000000
+            }
+        }
     }
 }
 ```

@@ -117,3 +117,39 @@ func (h *AccountHandler) DeleteAccount(c *gin.Context) {
 
 	response.SuccessResponse(c, http.StatusOK, "Account deleted successfully", nil)
 }
+
+// GetAccountSummary handles GET /accounts/summary
+func (h *AccountHandler) GetAccountSummary(c *gin.Context) {
+	userIDStr, _ := c.Get("user_id")
+	userID := userIDStr.(string)
+
+	summary, err := h.service.GetAccountSummary(userID)
+	if err != nil {
+		response.InternalErrorResponse(c, err)
+		return
+	}
+
+	response.SuccessResponse(c, http.StatusOK, "Account summary retrieved successfully", summary)
+}
+
+// GetBanks handles GET /accounts/banks
+func (h *AccountHandler) GetBanks(c *gin.Context) {
+	// Get search query if provided
+	searchQuery := c.Query("q")
+
+	var banks interface{}
+	var err error
+
+	if searchQuery != "" {
+		banks, err = h.service.SearchBanks(searchQuery)
+	} else {
+		banks, err = h.service.GetBanks()
+	}
+
+	if err != nil {
+		response.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch banks", err.Error())
+		return
+	}
+
+	response.SuccessResponse(c, http.StatusOK, "Banks retrieved successfully", banks)
+}
