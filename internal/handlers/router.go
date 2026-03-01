@@ -16,6 +16,8 @@ type Router struct {
 	transactionHandler *TransactionHandler
 	categoryHandler    *CategoryHandler
 	budgetHandler      *BudgetHandler
+	reportHandler      *ReportHandler
+	uploadHandler      *UploadHandler
 }
 
 // NewRouter creates a new router
@@ -27,6 +29,8 @@ func NewRouter(
 	transactionHandler *TransactionHandler,
 	categoryHandler *CategoryHandler,
 	budgetHandler *BudgetHandler,
+	reportHandler *ReportHandler,
+	uploadHandler *UploadHandler,
 ) *Router {
 	return &Router{
 		cfg:                cfg,
@@ -36,6 +40,8 @@ func NewRouter(
 		transactionHandler: transactionHandler,
 		categoryHandler:    categoryHandler,
 		budgetHandler:      budgetHandler,
+		reportHandler:      reportHandler,
+		uploadHandler:      uploadHandler,
 	}
 }
 
@@ -141,6 +147,24 @@ func (r *Router) Setup() *gin.Engine {
 				budgets.GET("/:id", r.budgetHandler.GetBudget)            // Get budget by ID
 				budgets.PUT("/:id", r.budgetHandler.UpdateBudget)         // Update budget
 				budgets.DELETE("/:id", r.budgetHandler.DeleteBudget)      // Delete budget
+			}
+
+			// Report routes
+			reports := protected.Group("/reports")
+			{
+				reports.GET("/overview", r.reportHandler.GetOverview)             // Get overview report
+				reports.GET("/by-category", r.reportHandler.GetByCategory)        // Get category breakdown
+				reports.GET("/by-merchant", r.reportHandler.GetByMerchant)        // Get merchant breakdown
+				reports.GET("/weekly-spending", r.reportHandler.GetWeeklySpending) // Get weekly spending
+				reports.GET("/weekly-cashflow", r.reportHandler.GetWeeklyCashflow) // Get weekly cashflow
+			}
+
+			// Upload routes
+			uploads := protected.Group("/uploads")
+			{
+				uploads.POST("/attachment", r.uploadHandler.UploadAttachment) // Upload transaction attachment
+				uploads.POST("/avatar", r.uploadHandler.UploadAvatar)         // Upload user avatar
+				uploads.DELETE("/attachment", r.uploadHandler.DeleteAttachment) // Delete attachment
 			}
 		}
 	}

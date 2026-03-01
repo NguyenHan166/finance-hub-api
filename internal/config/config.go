@@ -18,6 +18,7 @@ type Config struct {
 	Email       EmailConfig
 	CORS        CORSConfig
 	Storage     StorageConfig
+	R2          R2Config
 	Logging     LoggingConfig
 }
 
@@ -69,6 +70,16 @@ type StorageConfig struct {
 	AllowedFileTypes []string
 }
 
+// R2Config holds Cloudflare R2 configuration
+type R2Config struct {
+	AccountID       string
+	BucketName      string
+	AccessKeyID     string
+	SecretAccessKey string
+	Endpoint        string
+	PublicBaseURL   string
+}
+
 // LoggingConfig holds logging configuration
 type LoggingConfig struct {
 	Level string
@@ -113,6 +124,14 @@ func Load() (*Config, error) {
 		Storage: StorageConfig{
 			MaxUploadSize:    getEnvAsInt64("MAX_UPLOAD_SIZE", 5242880), // 5MB
 			AllowedFileTypes: getEnvAsSlice("ALLOWED_FILE_TYPES", []string{"image/jpeg", "image/png"}),
+		},
+		R2: R2Config{
+			AccountID:       getEnv("CF_R2_ACCOUNT_ID", ""),
+			BucketName:      getEnv("CF_R2_BUCKET", ""),
+			AccessKeyID:     getEnv("CF_R2_ACCESS_KEY_ID", ""),
+			SecretAccessKey: getEnv("CF_R2_SECRET_ACCESS_KEY", ""),
+			Endpoint:        getEnv("CF_R2_ENDPOINT", ""),
+			PublicBaseURL:   getEnv("R2_PUBLIC_BASE_URL", ""),
 		},
 		Logging: LoggingConfig{
 			Level: getEnv("LOG_LEVEL", "info"),

@@ -51,6 +51,7 @@ func main() {
 	transactionService := services.NewTransactionService(transactionRepo, accountRepo, categoryRepo)
 	categoryService := services.NewCategoryService(categoryRepo, transactionRepo)
 	budgetService := services.NewBudgetService(budgetRepo, transactionRepo, categoryRepo)
+	reportService := services.NewReportService(transactionRepo, categoryRepo)
 
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler()
@@ -59,6 +60,13 @@ func main() {
 	transactionHandler := handlers.NewTransactionHandler(transactionService)
 	categoryHandler := handlers.NewCategoryHandler(categoryService)
 	budgetHandler := handlers.NewBudgetHandler(budgetService)
+	reportHandler := handlers.NewReportHandler(reportService)
+	
+	// Initialize upload handler
+	uploadHandler, err := handlers.NewUploadHandler(cfg)
+	if err != nil {
+		log.Fatalf("Failed to initialize upload handler: %v", err)
+	}
 
 	// Setup router
 	router := handlers.NewRouter(
@@ -69,6 +77,8 @@ func main() {
 		transactionHandler,
 		categoryHandler,
 		budgetHandler,
+		reportHandler,
+		uploadHandler,
 	)
 
 	engine := router.Setup()

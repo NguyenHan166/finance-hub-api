@@ -613,3 +613,38 @@ func (r *TransactionRepository) CountByCategoryID(categoryID, userID string) (in
 
 	return int(count), nil
 }
+
+// GetByDateRange retrieves transactions within a date range
+func (r *TransactionRepository) GetByDateRange(userID string, startDate, endDate time.Time) ([]models.Transaction, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{
+		"user_id": userID,
+		"transaction_date": bson.M{
+			"$gte": startDate,
+			"$lte": endDate,
+		},
+	}
+
+	cursor, err := r.collection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var transactions []models.Transaction
+	if err := cursor.All(ctx, &transactions); err != nil {
+		return nil, err
+	}
+
+	// Initialize empty tags array if nil
+	for i := range transactions {
+		if transactions[i].Tags == nil {
+			transactions[i].Tags = []string{}
+		}
+	}
+
+	return transactions, nil
+}
+

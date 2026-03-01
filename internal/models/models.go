@@ -333,6 +333,67 @@ func (p *PaginationQuery) SetDefaults() {
 	}
 }
 
+// DateRangeQuery represents date range query parameters
+type DateRangeQuery struct {
+	StartDate string `form:"start_date" binding:"required"`
+	EndDate   string `form:"end_date" binding:"required"`
+}
+
+// Report Types
+// OverviewReport represents overview statistics for a date range
+type OverviewReport struct {
+	TotalIncome      float64                  `json:"total_income"`
+	TotalExpense     float64                  `json:"total_expense"`
+	NetSaving        float64                  `json:"net_saving"`
+	SavingRate       float64                  `json:"saving_rate"`
+	TransactionCount int                      `json:"transaction_count"`
+	AvgDailyExpense  float64                  `json:"avg_daily_expense"`
+	ComparedToPrevMonth ComparisonMetrics     `json:"compared_to_prev_month"`
+}
+
+// ComparisonMetrics represents percentage change compared to previous period
+type ComparisonMetrics struct {
+	Income  float64 `json:"income"`
+	Expense float64 `json:"expense"`
+	Saving  float64 `json:"saving"`
+}
+
+// CategoryReport represents expenses grouped by category
+type CategoryReport struct {
+	CategoryID       string  `json:"category_id"`
+	CategoryName     string  `json:"category_name"`
+	Amount           float64 `json:"amount"`
+	Percentage       float64 `json:"percentage"`
+	TransactionCount int     `json:"transaction_count"`
+	Trend            string  `json:"trend"` // up, down, stable
+}
+
+// MerchantReport represents expenses grouped by merchant
+type MerchantReport struct {
+	Merchant         string  `json:"merchant"`
+	Amount           float64 `json:"amount"`
+	TransactionCount int     `json:"transaction_count"`
+	Percentage       float64 `json:"percentage"`
+}
+
+// WeeklySpending represents spending for a week
+type WeeklySpending struct {
+	Week             string  `json:"week"`
+	Label            string  `json:"label"`
+	Amount           float64 `json:"amount"`
+	TransactionCount int     `json:"transaction_count"`
+}
+
+// WeeklyCashflow represents income/expense/net for a week
+type WeeklyCashflow struct {
+	Week    string  `json:"week"`
+	Label   string  `json:"label"`
+	Income  float64 `json:"income"`
+	Expense float64 `json:"expense"`
+	Net     float64 `json:"net"`
+}
+
+
 // GetOffset calculates offset for SQL query
 func (p *PaginationQuery) GetOffset() int {
 	return (p.Page - 1) * p.Limit
